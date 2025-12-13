@@ -1,4 +1,4 @@
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -6,6 +6,7 @@ import {
   Image,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { supabase } from "../../lib/supabaseClient";
@@ -20,6 +21,8 @@ type Photo = {
 export default function MyProfile() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const router = useRouter();
 
   async function loadMyPhotos() {
     setLoading(true);
@@ -52,7 +55,7 @@ export default function MyProfile() {
     }, [])
   );
 
-  function getStatusColor(status: string) {
+  function getStatusColor(status: Photo["status"]) {
     switch (status) {
       case "approved":
         return "#2ecc71";
@@ -63,28 +66,40 @@ export default function MyProfile() {
     }
   }
 
+  function getImageUrl(path: string) {
+    return supabase.storage.from("photos").getPublicUrl(path).data.publicUrl;
+  }
+
   function renderItem({ item }: { item: Photo }) {
-    const imageUrl = supabase.storage
-      .from("photos")
-      .getPublicUrl(item.image_url).data.publicUrl;
+    const imageUrl = getImageUrl(item.image_url);
 
     return (
-      <View style={styles.card}>
-        <Image source={{ uri: imageUrl }} style={styles.image} />
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() =>
+          router.push({
+            pathname: "/photo/[id]",
+            params: { id: item.id },
+          })
+        }
+      >
+        <View style={styles.card}>
+          <Image source={{ uri: imageUrl }} style={styles.image} />
 
-        <View style={styles.cardFooter}>
-          <Text style={styles.title}>{item.title}</Text>
+          <View style={styles.cardFooter}>
+            <Text style={styles.title}>{item.title}</Text>
 
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(item.status) },
-            ]}
-          >
-            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: getStatusColor(item.status) },
+              ]}
+            >
+              <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+            </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 
@@ -99,6 +114,7 @@ export default function MyProfile() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Meu Perfil</Text>
+
       <FlatList
         data={photos}
         keyExtractor={(item) => item.id}
@@ -117,8 +133,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   list: {
-    padding: 16,
-    backgroundColor: "#0f0f0f",
+    paddingBottom: 32,
   },
   loading: {
     flex: 1,
