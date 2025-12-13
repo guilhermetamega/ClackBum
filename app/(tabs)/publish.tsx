@@ -52,23 +52,31 @@ export default function Publish() {
 
     setLoading(true);
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    // debug: checa sessão/usuário
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    const { data: sessionData } = await supabase.auth.getSession();
+    console.log("DEBUG: userData:", userData, "userError:", userError);
+    console.log("DEBUG: sessionData:", sessionData);
 
-    if (userError || !user) {
+    if (userError || !userData?.user) {
       setLoading(false);
-      return Alert.alert("Você precisa estar logado.");
+      Alert.alert("Você precisa estar logado.");
+      return;
     }
 
+    const user = userData.user; // tem id
+
     try {
+      // pega blob
       const fetched = await fetch(imageUri);
       const blob = await fetched.blob();
 
       const contentType = blob.type || "image/jpeg";
       const ext = contentType.split("/")[1] || "jpeg";
-      const filePath = `public/${user.id}/${Date.now()}.${ext}`;
+      // filePath dentro do bucket (sem prefixo 'photos' — bucket já é passado em .from("photos"))
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
+
+      console.log("DEBUG: uploading file to storage, filePath:", filePath);
 
       const { data: storageData, error: storageError } = await supabase.storage
         .from("photos")
@@ -77,27 +85,48 @@ export default function Publish() {
           upsert: false,
         });
 
+      console.log(
+        "DEBUG: storageData:",
+        storageData,
+        "storageError:",
+        storageError
+      );
+
       if (storageError) {
-        console.error(storageError);
         setLoading(false);
-        return Alert.alert("Erro ao enviar imagem");
+        console.error("Storage upload error:", storageError);
+        return Alert.alert("Erro ao enviar imagem", storageError.message);
       }
 
+      // converte tags
       const tagsArray = parseTags(tagsText);
 
-      const { error: insertError } = await supabase.from("photos").insert({
-        user_id: user.id,
-        title,
-        description,
-        tags: tagsArray,
-        price: Number(price),
-        image_url: filePath,
-        status: "pending",
-      });
+      // insere na tabela photos e retorna linha inserida com .select()
+      const { data: insertData, error: insertError } = await supabase
+        .from("photos")
+        .insert({
+          user_id: user.id,
+          title,
+          description,
+          tags: tagsArray,
+          price: Number(price),
+          image_url: filePath, // path no bucket
+          status: "pending",
+        })
+        .select() // retorna a linha inserida (útil para debug)
+        .single();
+
+      console.log(
+        "DEBUG: insertData:",
+        insertData,
+        "insertError:",
+        insertError
+      );
 
       setLoading(false);
 
       if (insertError) {
+        // mostra mensagem detalhada
         Alert.alert("Erro ao salvar no banco", insertError.message);
         return;
       }
@@ -106,6 +135,7 @@ export default function Publish() {
       router.replace("/(tabs)");
     } catch (err: any) {
       setLoading(false);
+      console.error("Unexpected error:", err);
       Alert.alert("Erro", String(err.message || err));
     }
   }
