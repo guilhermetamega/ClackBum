@@ -1,4 +1,3 @@
-// app/(tabs)/profile.tsx
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -13,43 +12,53 @@ import { supabase } from "../../lib/supabaseClient";
 interface Photo {
   id: string;
   title: string;
-  image_url: string; // path salvo no banco
+  image_url: string;
 }
+
+const PAGE_SIZE = 20;
 
 export default function PublicProfile() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
     fetchPhotos();
   }, []);
 
-  async function fetchPhotos() {
-    setLoading(true);
+  async function fetchPhotos(loadMore = false) {
+    if (loadingMore || (!hasMore && loadMore)) return;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    loadMore ? setLoadingMore(true) : setLoading(true);
+
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     const { data, error } = await supabase
       .from("photos")
       .select("id, title, image_url")
-      .eq("user_id", user.id)
       .eq("status", "approved")
-      .order("created_at", { ascending: false });
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (error) {
       console.error(error);
       setLoading(false);
+      setLoadingMore(false);
       return;
     }
 
-    setPhotos(data || []);
+    if (data) {
+      setPhotos((prev) => (loadMore ? [...prev, ...data] : data));
+      setHasMore(data.length === PAGE_SIZE);
+      setPage((prev) => prev + 1);
+    }
+
     setLoading(false);
+    setLoadingMore(false);
   }
 
   function renderItem({ item }: { item: Photo }) {
@@ -65,7 +74,17 @@ export default function PublicProfile() {
     );
   }
 
-  if (loading) {
+  function renderFooter() {
+    if (!loadingMore) return null;
+
+    return (
+      <View style={{ paddingVertical: 20 }}>
+        <ActivityIndicator size="small" color="#FFA500" />
+      </View>
+    );
+  }
+
+  if (loading && page === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#FFA500" />
@@ -75,12 +94,16 @@ export default function PublicProfile() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Perfil de Fulano</Text>
+      <Text style={styles.header}>Feed Público</Text>
+
       <FlatList
         data={photos}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={{ paddingBottom: 20 }}
+        onEndReached={() => fetchPhotos(true)}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
       />
     </View>
   );
