@@ -1,0 +1,128 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+import { supabase } from "../../../lib/supabaseClient";
+
+type Photo = {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string;
+  visibility: "public" | "unlisted" | "private";
+  user_id: string;
+};
+
+export default function PhotoScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPhoto();
+  }, [id]);
+
+  async function fetchPhoto() {
+    setLoading(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data, error } = await supabase
+      .from("photos")
+      .select("id, title, description, image_url, visibility, user_id, status")
+      .eq("id", id)
+      .eq("status", "approved")
+      .single();
+
+    if (error || !data) {
+      setLoading(false);
+      return;
+    }
+
+    // 🔒 Regra de acesso
+    if (data.visibility === "private" && (!user || user.id !== data.user_id)) {
+      setLoading(false);
+      router.replace("/"); // ou tela de erro
+      return;
+    }
+
+    setPhoto(data);
+    setLoading(false);
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#FFA500" />
+      </View>
+    );
+  }
+
+  if (!photo) {
+    return (
+      <View style={styles.center}>
+        <Text style={{ color: "#fff" }}>Foto não encontrada</Text>
+      </View>
+    );
+  }
+
+  const imageUrl = supabase.storage.from("photos").getPublicUrl(photo.image_url)
+    .data.publicUrl;
+
+  return (
+    <View style={styles.container}>
+      <Image source={{ uri: imageUrl }} style={styles.image} />
+
+      <View style={styles.content}>
+        <Text style={styles.title}>{photo.title}</Text>
+
+        {photo.description ? (
+          <Text style={styles.description}>{photo.description}</Text>
+        ) : null}
+
+        {photo.visibility === "unlisted" && (
+          <Text style={styles.unlisted}>🔗 Foto com link privado</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0f0f0f",
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0f0f0f",
+  },
+  image: {
+    width: "100%",
+    height: 360,
+  },
+  content: {
+    padding: 16,
+  },
+  title: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "900",
+    marginBottom: 8,
+  },
+  description: {
+    color: "#ccc",
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  unlisted: {
+    marginTop: 12,
+    color: "#f1c40f",
+    fontWeight: "700",
+  },
+});

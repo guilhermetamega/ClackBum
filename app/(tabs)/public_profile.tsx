@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -5,6 +6,7 @@ import {
   Image,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { supabase } from "../../lib/supabaseClient";
@@ -23,6 +25,8 @@ export default function PublicProfile() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+
+  const router = useRouter();
 
   useEffect(() => {
     fetchPhotos();
@@ -67,10 +71,24 @@ export default function PublicProfile() {
       .getPublicUrl(item.image_url).data.publicUrl;
 
     return (
-      <View style={styles.card}>
-        <Image source={{ uri: publicUrl }} style={styles.image} />
-        <Text style={styles.title}>{item.title}</Text>
-      </View>
+      // <View style={styles.card}>
+      //   <Image source={{ uri: publicUrl }} style={styles.image} />
+      //   <Text style={styles.title}>{item.title}</Text>
+      // </View>
+
+      <TouchableOpacity
+        onPress={() =>
+          router.push({
+            pathname: "/photo/[id]",
+            params: { id: item.id },
+          })
+        }
+      >
+        <View style={styles.card}>
+          <Image source={{ uri: publicUrl }} style={styles.image} />
+          <Text style={styles.title}>{item.title}</Text>
+        </View>
+      </TouchableOpacity>
     );
   }
 
