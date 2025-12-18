@@ -1,6 +1,13 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { supabase } from "../../../lib/supabaseClient";
 
 type Photo = {
@@ -10,7 +17,15 @@ type Photo = {
   image_url: string;
   visibility: "public" | "unlisted" | "private";
   user_id: string;
+  price: number;
 };
+
+function formatPrice(value: number) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
 
 export default function PhotoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,7 +47,9 @@ export default function PhotoScreen() {
 
     const { data, error } = await supabase
       .from("photos")
-      .select("id, title, description, image_url, visibility, user_id, status")
+      .select(
+        "id, title, description, image_url, visibility, user_id, price, status"
+      )
       .eq("id", id)
       .eq("status", "approved")
       .single();
@@ -45,7 +62,7 @@ export default function PhotoScreen() {
     // 🔒 Regra de acesso
     if (data.visibility === "private" && (!user || user.id !== data.user_id)) {
       setLoading(false);
-      router.replace("/"); // ou tela de erro
+      router.replace("/");
       return;
     }
 
@@ -73,21 +90,39 @@ export default function PhotoScreen() {
     .data.publicUrl;
 
   return (
-    <View style={styles.container}>
-      <Image source={{ uri: imageUrl }} style={styles.image} />
+    <>
+      <Stack.Screen
+        options={{
+          title: photo.title,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => alert("Pagamento em breve")}
+              style={styles.buyButton}
+            >
+              <Text style={styles.buyText}>
+                Comprar por {formatPrice(photo.price)}
+              </Text>
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
-      <View style={styles.content}>
-        <Text style={styles.title}>{photo.title}</Text>
+      <View style={styles.container}>
+        <Image source={{ uri: imageUrl }} style={styles.image} />
 
-        {photo.description ? (
-          <Text style={styles.description}>{photo.description}</Text>
-        ) : null}
+        <View style={styles.content}>
+          <Text style={styles.title}>{photo.title}</Text>
 
-        {photo.visibility === "unlisted" && (
-          <Text style={styles.unlisted}>🔗 Foto com link privado</Text>
-        )}
+          {photo.description ? (
+            <Text style={styles.description}>{photo.description}</Text>
+          ) : null}
+
+          {photo.visibility === "unlisted" && (
+            <Text style={styles.unlisted}>🔗 Foto com link privado</Text>
+          )}
+        </View>
       </View>
-    </View>
+    </>
   );
 }
 
@@ -124,5 +159,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: "#f1c40f",
     fontWeight: "700",
+  },
+  buyButton: {
+    marginRight: 12,
+    backgroundColor: "#FFA500",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  buyText: {
+    color: "#000",
+    fontWeight: "900",
+    fontSize: 14,
   },
 });

@@ -79,7 +79,7 @@ export default function HomeScreen() {
         activeOpacity={0.85}
         onPress={() =>
           router.push({
-            pathname: "/photo/[id]",
+            pathname: "/(hidden)/photo/[id]",
             params: { id: item.id },
           })
         }
