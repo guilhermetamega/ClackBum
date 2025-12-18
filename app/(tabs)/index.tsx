@@ -1,3 +1,4 @@
+import UserActionButton from "@/components/userActionButton";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -111,7 +112,9 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Feed Público</Text>
+      <Text style={styles.header}>
+        Feed Público <UserActionButton />
+      </Text>
 
       <FlatList
         data={photos}

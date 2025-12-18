@@ -1,3 +1,4 @@
+import UserActionButton from "@/components/userActionButton";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -113,7 +114,10 @@ export default function MyProfile() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Meu Perfil</Text>
+      <Text style={styles.header}>
+        Meu Perfil
+        <UserActionButton />
+      </Text>
 
       <FlatList
         data={photos}
