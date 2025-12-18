@@ -14,7 +14,7 @@ type Photo = {
   id: string;
   title: string;
   description: string;
-  image_url: string;
+  preview_path: string;
   visibility: "public" | "unlisted" | "private";
   user_id: string;
   price: number;
@@ -48,7 +48,7 @@ export default function PhotoScreen() {
     const { data, error } = await supabase
       .from("photos")
       .select(
-        "id, title, description, image_url, visibility, user_id, price, status"
+        "id, title, description, preview_path, visibility, user_id, price, status"
       )
       .eq("id", id)
       .eq("status", "approved")
@@ -86,8 +86,9 @@ export default function PhotoScreen() {
     );
   }
 
-  const imageUrl = supabase.storage.from("photos").getPublicUrl(photo.image_url)
-    .data.publicUrl;
+  const imageUrl = supabase.storage
+    .from("photos_public")
+    .getPublicUrl(photo.preview_path).data.publicUrl;
 
   return (
     <>

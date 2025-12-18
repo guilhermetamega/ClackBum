@@ -15,7 +15,7 @@ import { supabase } from "../../lib/supabaseClient";
 interface Photo {
   id: string;
   title: string;
-  image_url: string;
+  preview_path: string;
 }
 
 const PAGE_SIZE = 20;
@@ -44,7 +44,7 @@ export default function HomeScreen() {
 
     const { data, error } = await supabase
       .from("photos")
-      .select("id, title, image_url")
+      .select("id, title, preview_path")
       .eq("status", "approved")
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
@@ -68,11 +68,12 @@ export default function HomeScreen() {
   }
 
   function getImageUrl(path: string) {
-    return supabase.storage.from("photos").getPublicUrl(path).data.publicUrl;
+    return supabase.storage.from("photos_public").getPublicUrl(path).data
+      .publicUrl;
   }
 
   function renderItem({ item }: { item: Photo }) {
-    const imageUrl = getImageUrl(item.image_url);
+    const imageUrl = getImageUrl(item.preview_path);
 
     return (
       <TouchableOpacity

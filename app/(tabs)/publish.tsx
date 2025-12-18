@@ -1,3 +1,4 @@
+import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -15,6 +16,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 export default function Publish() {
   const router = useRouter();
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
@@ -27,14 +29,14 @@ export default function Publish() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.9,
       });
 
       if (!result.canceled) {
         setImageUri(result.assets[0].uri);
       }
-    } catch (err: any) {
-      Alert.alert("Erro ao abrir galeria", String(err));
+    } catch (err) {
+      Alert.alert("Erro", "Falha ao abrir galeria");
     }
   }
 
@@ -47,96 +49,94 @@ export default function Publish() {
 
   async function uploadPhoto() {
     if (!title || !price || !imageUri) {
-      return Alert.alert("Preencha título, preço e escolha uma imagem.");
+      Alert.alert("Preencha título, preço e escolha uma imagem.");
+      return;
     }
 
     setLoading(true);
 
-    // debug: checa sessão/usuário
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    const { data: sessionData } = await supabase.auth.getSession();
-    console.log("DEBUG: userData:", userData, "userError:", userError);
-    console.log("DEBUG: sessionData:", sessionData);
-
-    if (userError || !userData?.user) {
-      setLoading(false);
-      Alert.alert("Você precisa estar logado.");
-      return;
-    }
-
-    const user = userData.user; // tem id
-
     try {
-      // pega blob
-      const fetched = await fetch(imageUri);
-      const blob = await fetched.blob();
+      // AUTH
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
 
-      const contentType = blob.type || "image/jpeg";
-      const ext = contentType.split("/")[1] || "jpeg";
-      // filePath dentro do bucket (sem prefixo 'photos' — bucket já é passado em .from("photos"))
-      const filePath = `${user.id}/${Date.now()}.${ext}`;
+      if (authError || !user) {
+        Alert.alert("Você precisa estar logado.");
+        return;
+      }
 
-      console.log("DEBUG: uploading file to storage, filePath:", filePath);
+      const timestamp = Date.now();
+      const basePath = `${user.id}/${timestamp}`;
 
-      const { data: storageData, error: storageError } = await supabase.storage
+      // ======================
+      // ORIGINAL (PRIVADO)
+      // ======================
+      const originalBlob = await fetch(imageUri).then((r) => r.blob());
+      const contentType = originalBlob.type || "image/jpeg";
+      const ext = contentType.split("/")[1] || "jpg";
+      const originalPath = `${basePath}.${ext}`;
+
+      const { error: originalError } = await supabase.storage
         .from("photos")
-        .upload(filePath, blob, {
+        .upload(originalPath, originalBlob, {
           contentType,
           upsert: false,
         });
 
-      console.log(
-        "DEBUG: storageData:",
-        storageData,
-        "storageError:",
-        storageError
+      if (originalError) throw originalError;
+
+      // ======================
+      // PREVIEW (PÚBLICO)
+      // ======================
+      const previewResult = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [{ resize: { width: 1200 } }],
+        {
+          compress: 0.7,
+          format: ImageManipulator.SaveFormat.JPEG,
+        }
       );
 
-      if (storageError) {
-        setLoading(false);
-        console.error("Storage upload error:", storageError);
-        return Alert.alert("Erro ao enviar imagem", storageError.message);
-      }
+      const previewBlob = await fetch(previewResult.uri).then((r) => r.blob());
+      const previewPath = `${basePath}_preview.jpg`;
 
-      // converte tags
+      const { error: previewError } = await supabase.storage
+        .from("photos_public")
+        .upload(previewPath, previewBlob, {
+          contentType: "image/jpeg",
+          upsert: false,
+        });
+
+      if (previewError) throw previewError;
+
+      // ======================
+      // DATABASE
+      // ======================
       const tagsArray = parseTags(tagsText);
 
-      // insere na tabela photos e retorna linha inserida com .select()
-      const { data: insertData, error: insertError } = await supabase
-        .from("photos")
-        .insert({
-          user_id: user.id,
-          title,
-          description,
-          tags: tagsArray,
-          price: Number(price),
-          image_url: filePath, // path no bucket
-          status: "pending",
-        })
-        .select() // retorna a linha inserida (útil para debug)
-        .single();
+      const { error: insertError } = await supabase.from("photos").insert({
+        user_id: user.id,
+        title,
+        description,
+        tags: tagsArray,
+        price: Number(price),
+        original_path: originalPath,
+        preview_path: previewPath,
+        status: "pending",
+        visibility: "private",
+      });
 
-      console.log(
-        "DEBUG: insertData:",
-        insertData,
-        "insertError:",
-        insertError
-      );
-
-      setLoading(false);
-
-      if (insertError) {
-        // mostra mensagem detalhada
-        Alert.alert("Erro ao salvar no banco", insertError.message);
-        return;
-      }
+      if (insertError) throw insertError;
 
       Alert.alert("Sucesso!", "Foto enviada para moderação.");
       router.replace("/(tabs)");
     } catch (err: any) {
+      console.error("Upload error:", err);
+      Alert.alert("Erro", err.message || "Erro inesperado");
+    } finally {
       setLoading(false);
-      console.error("Unexpected error:", err);
-      Alert.alert("Erro", String(err.message || err));
     }
   }
 
@@ -156,8 +156,8 @@ export default function Publish() {
         placeholder="Título"
         placeholderTextColor="#999"
         style={styles.input}
-        onChangeText={setTitle}
         value={title}
+        onChangeText={setTitle}
       />
 
       <TextInput
@@ -165,16 +165,16 @@ export default function Publish() {
         placeholderTextColor="#999"
         multiline
         style={[styles.input, { height: 90 }]}
-        onChangeText={setDescription}
         value={description}
+        onChangeText={setDescription}
       />
 
       <TextInput
-        placeholder="Tags (separe por vírgula) — ex: favela, rua, grafite"
+        placeholder="Tags (separe por vírgula)"
         placeholderTextColor="#999"
         style={styles.input}
-        onChangeText={setTagsText}
         value={tagsText}
+        onChangeText={setTagsText}
       />
 
       <TextInput
@@ -182,8 +182,8 @@ export default function Publish() {
         placeholderTextColor="#999"
         keyboardType="numeric"
         style={styles.input}
-        onChangeText={setPrice}
         value={price}
+        onChangeText={setPrice}
       />
 
       <TouchableOpacity
