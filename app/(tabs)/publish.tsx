@@ -1,4 +1,3 @@
-import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -12,30 +11,32 @@ import {
   TextInput,
   TouchableOpacity,
 } from "react-native";
-import { supabase } from "../../lib/supabaseClient";
+
+import { usePhotoUpload } from "@/hooks/usePhotoUpload";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function Publish() {
   const router = useRouter();
+  const { uploadPhoto, loading } = usePhotoUpload();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [imageUri, setImageUri] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   async function pickImage() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.9,
+        quality: 1,
       });
 
       if (!result.canceled) {
         setImageUri(result.assets[0].uri);
       }
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Falha ao abrir galeria");
     }
   }
@@ -47,96 +48,38 @@ export default function Publish() {
       .filter(Boolean);
   }
 
-  async function uploadPhoto() {
+  async function handlePublish() {
     if (!title || !price || !imageUri) {
       Alert.alert("Preencha título, preço e escolha uma imagem.");
       return;
     }
 
-    setLoading(true);
-
     try {
-      // AUTH
+      // 🔐 GARANTE SESSÃO ANTES DE QUALQUER COISA
       const {
         data: { user },
-        error: authError,
+        error,
       } = await supabase.auth.getUser();
 
-      if (authError || !user) {
-        Alert.alert("Você precisa estar logado.");
+      if (error || !user) {
+        Alert.alert("Erro", "Você precisa estar logado.");
         return;
       }
 
-      const timestamp = Date.now();
-      const basePath = `${user.id}/${timestamp}`;
-
-      // ======================
-      // ORIGINAL (PRIVADO)
-      // ======================
-      const originalBlob = await fetch(imageUri).then((r) => r.blob());
-      const contentType = originalBlob.type || "image/jpeg";
-      const ext = contentType.split("/")[1] || "jpg";
-      const originalPath = `${basePath}.${ext}`;
-
-      const { error: originalError } = await supabase.storage
-        .from("photos")
-        .upload(originalPath, originalBlob, {
-          contentType,
-          upsert: false,
-        });
-
-      if (originalError) throw originalError;
-
-      // ======================
-      // PREVIEW (PÚBLICO)
-      // ======================
-      const previewResult = await ImageManipulator.manipulateAsync(
-        imageUri,
-        [{ resize: { width: 1200 } }],
-        {
-          compress: 0.7,
-          format: ImageManipulator.SaveFormat.JPEG,
-        }
-      );
-
-      const previewBlob = await fetch(previewResult.uri).then((r) => r.blob());
-      const previewPath = `${basePath}_preview.jpg`;
-
-      const { error: previewError } = await supabase.storage
-        .from("photos_public")
-        .upload(previewPath, previewBlob, {
-          contentType: "image/jpeg",
-          upsert: false,
-        });
-
-      if (previewError) throw previewError;
-
-      // ======================
-      // DATABASE
-      // ======================
-      const tagsArray = parseTags(tagsText);
-
-      const { error: insertError } = await supabase.from("photos").insert({
-        user_id: user.id,
+      await uploadPhoto({
+        file: { uri: imageUri }, // 🔥 string pura (URI)
         title,
         description,
-        tags: tagsArray,
         price: Number(price),
-        original_path: originalPath,
-        preview_path: previewPath,
-        status: "pending",
+        tags: parseTags(tagsText),
         visibility: "private",
       });
-
-      if (insertError) throw insertError;
 
       Alert.alert("Sucesso!", "Foto enviada para moderação.");
       router.replace("/(tabs)");
     } catch (err: any) {
-      console.error("Upload error:", err);
-      Alert.alert("Erro", err.message || "Erro inesperado");
-    } finally {
-      setLoading(false);
+      console.error("Publish error:", err);
+      Alert.alert("Erro", err.message || "Erro ao publicar foto");
     }
   }
 
@@ -188,7 +131,7 @@ export default function Publish() {
 
       <TouchableOpacity
         style={styles.button}
-        onPress={uploadPhoto}
+        onPress={handlePublish}
         disabled={loading}
       >
         {loading ? (
