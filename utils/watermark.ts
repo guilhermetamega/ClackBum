@@ -1,17 +1,17 @@
 export async function generateWatermark(
   file: File | { uri: string }
 ): Promise<{ original: File | Blob; preview: Blob }> {
-  // =========================
-  // ORIGINAL (SEM ALTERAÇÃO)
-  // =========================
+  /* =========================
+     ORIGINAL
+  ========================= */
   const original =
     file instanceof File
       ? file
       : await fetch(file.uri).then((r) => r.blob())
 
-  // =========================
-  // LOAD IMAGE
-  // =========================
+  /* =========================
+     LOAD IMAGE
+  ========================= */
   const imageUrl =
     file instanceof File ? URL.createObjectURL(file) : file.uri
 
@@ -27,53 +27,50 @@ export async function generateWatermark(
 
   ctx.drawImage(img, 0, 0)
 
+  /* =========================
+     WATERMARK CONFIG
+  ========================= */
   const text = "CLACKBUM"
+  const angle = (-35 * Math.PI) / 180
 
-  // =========================
-  // CONFIG GLOBAL
-  // =========================
+  const minSide = Math.min(canvas.width, canvas.height)
+  const fontSize = minSide * 0.15
+  const gapX = fontSize * 7
+  const gapY = fontSize * 2
+
+  ctx.font = `bold ${fontSize}px Arial`
   ctx.fillStyle = "rgba(255, 255, 255, 0.35)"
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
 
-  const minSide = Math.min(canvas.width, canvas.height)
+  /* =========================
+     ROTATE + ALTERNATED STRIPES
+  ========================= */
+  ctx.save()
+  ctx.translate(canvas.width / 2, canvas.height / 2)
+  ctx.rotate(angle)
 
-  // =========================
-  // CENTRO (GRANDE)
-  // =========================
-  const centerFontSize = minSide * 0.2
-  ctx.font = `bold ${centerFontSize}px Arial`
-
-  ctx.fillText(
-    text,
-    canvas.width / 2,
-    canvas.height / 2
+  const diagonal = Math.sqrt(
+    canvas.width ** 2 + canvas.height ** 2
   )
 
-  // =========================
-  // CANTOS (MENORES)
-  // =========================
-  const cornerFontSize = minSide * 0.045
-  ctx.font = `bold ${cornerFontSize}px Arial`
+  let row = 0
 
-  const padding = cornerFontSize * 0.8
+  for (let y = -diagonal; y < diagonal; y += gapY) {
+    const offsetX = row % 2 === 0 ? 0 : gapX / 2
 
-  // superior esquerdo
-  ctx.fillText(text, padding, padding)
+    for (let x = -diagonal; x < diagonal; x += gapX) {
+      ctx.fillText(text, x + offsetX, y)
+    }
 
-  // superior direito
-  ctx.fillText(text, canvas.width - padding, padding)
+    row++
+  }
 
-  // inferior esquerdo
-  ctx.fillText(text, padding, canvas.height - padding)
+  ctx.restore()
 
-  // inferior direito
-  ctx.fillText(
-    text,
-    canvas.width - padding,
-    canvas.height - padding
-  )
-
+  /* =========================
+     EXPORT
+  ========================= */
   const previewBlob: Blob = await new Promise((resolve) =>
     canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.8)
   )
