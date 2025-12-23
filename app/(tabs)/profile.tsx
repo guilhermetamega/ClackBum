@@ -263,7 +263,9 @@ export default function MyProfile() {
                 selectedPhoto && updateVisibility(selectedPhoto.id, "unlisted")
               }
             >
-              <Text style={styles.sheetItem}>🔗 Tornar Não Listada</Text>
+              <Text style={styles.sheetItem}>
+                🔗 Tornar Não Listada (Acesso Apenas de Pessoas Com o Link)
+              </Text>
             </Pressable>
 
             <Pressable
