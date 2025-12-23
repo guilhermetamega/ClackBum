@@ -1,12 +1,13 @@
 import UserActionButton from "@/components/userActionButton";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -19,6 +20,7 @@ interface Photo {
 }
 
 const PAGE_SIZE = 20;
+const DEBOUNCE_MS = 300;
 
 export default function HomeScreen() {
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -27,13 +29,31 @@ export default function HomeScreen() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
+  const [search, setSearch] = useState("");
+
   const router = useRouter();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     fetchPhotos();
   }, []);
 
-  async function fetchPhotos(loadMore = false) {
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(() => {
+      setPhotos([]);
+      setPage(0);
+      setHasMore(true);
+      fetchPhotos(false, true);
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search]);
+
+  async function fetchPhotos(loadMore = false, reset = false) {
     if (loadingMore || (!hasMore && loadMore)) return;
 
     loadMore ? setLoadingMore(true) : setLoading(true);
@@ -42,13 +62,19 @@ export default function HomeScreen() {
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    const { data, error } = await supabase
+    let query = supabase
       .from("photos")
       .select("id, title, preview_path")
       .eq("status", "approved")
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
       .range(from, to);
+
+    if (search.trim()) {
+      query = query.or(`title.ilike.%${search}%,tags.cs.{${search}}`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error(error);
@@ -117,6 +143,14 @@ export default function HomeScreen() {
         Feed Público <UserActionButton />
       </Text>
 
+      <TextInput
+        placeholder="Buscar por título ou tag"
+        placeholderTextColor="#777"
+        value={search}
+        onChangeText={setSearch}
+        style={styles.search}
+      />
+
       <FlatList
         data={photos}
         keyExtractor={(item) => item.id}
@@ -147,6 +181,14 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "900",
     color: "#FFA500",
+    marginBottom: 12,
+  },
+  search: {
+    backgroundColor: "#1a1a1a",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#fff",
     marginBottom: 16,
   },
   card: {
