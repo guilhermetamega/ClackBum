@@ -1,7 +1,9 @@
+import { useStripePayment } from "@/hooks/useStripePayment";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   StyleSheet,
   Text,
@@ -30,9 +32,11 @@ function formatPrice(value: number) {
 export default function PhotoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { pay } = useStripePayment();
 
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [buying, setBuying] = useState(false);
 
   useEffect(() => {
     fetchPhoto();
@@ -59,15 +63,28 @@ export default function PhotoScreen() {
       return;
     }
 
-    // 🔒 Regra de acesso
+    // 🔒 regra de acesso
     if (data.visibility === "private" && (!user || user.id !== data.user_id)) {
-      setLoading(false);
       router.replace("/");
       return;
     }
 
     setPhoto(data);
     setLoading(false);
+  }
+
+  async function handleBuy() {
+    if (!photo) return;
+
+    try {
+      setBuying(true);
+      await pay(photo.id);
+      Alert.alert("Sucesso", "Pagamento confirmado 🎉");
+    } catch (err) {
+      Alert.alert("Erro", "Pagamento cancelado ou falhou");
+    } finally {
+      setBuying(false);
+    }
   }
 
   if (loading) {
@@ -97,11 +114,14 @@ export default function PhotoScreen() {
           title: photo.title,
           headerRight: () => (
             <TouchableOpacity
-              onPress={() => alert("Pagamento em breve")}
+              disabled={buying}
+              onPress={handleBuy}
               style={styles.buyButton}
             >
               <Text style={styles.buyText}>
-                Comprar por {formatPrice(photo.price)}
+                {buying
+                  ? "Processando..."
+                  : `Comprar por ${formatPrice(photo.price)}`}
               </Text>
             </TouchableOpacity>
           ),
@@ -128,23 +148,15 @@ export default function PhotoScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0f0f0f",
-  },
+  container: { flex: 1, backgroundColor: "#0f0f0f" },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#0f0f0f",
   },
-  image: {
-    width: "100%",
-    height: 360,
-  },
-  content: {
-    padding: 16,
-  },
+  image: { width: "100%", height: 360 },
+  content: { padding: 16 },
   title: {
     color: "#fff",
     fontSize: 22,

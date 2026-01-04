@@ -1,5 +1,5 @@
 import UserActionButton from "@/components/userActionButton";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -28,11 +28,50 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-
   const [search, setSearch] = useState("");
 
   const router = useRouter();
+  const { payment } = useLocalSearchParams<{ payment?: string }>();
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  // ✅ marca quando a tela montou
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 🔔 Feedback pós-checkout Stripe (WEB SAFE)
+  useEffect(() => {
+    if (!mounted || !payment) return;
+
+    if (payment === "success") {
+      setToast({
+        message:
+          "Pagamento aprovado. A foto já está disponível para download no seu perfil 📸",
+        type: "success",
+      });
+    }
+
+    if (payment === "cancel") {
+      setToast({
+        message: "Pagamento cancelado. Nenhuma cobrança foi feita.",
+        type: "error",
+      });
+    }
+
+    const timer = setTimeout(() => {
+      setToast(null);
+      router.replace("/");
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [payment, mounted]);
 
   useEffect(() => {
     fetchPhotos();
@@ -161,6 +200,17 @@ export default function HomeScreen() {
         ListFooterComponent={renderFooter}
         showsVerticalScrollIndicator={false}
       />
+
+      {toast && (
+        <View
+          style={[
+            styles.toast,
+            toast.type === "success" ? styles.toastSuccess : styles.toastError,
+          ]}
+        >
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -206,5 +256,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     padding: 12,
+  },
+  toast: {
+    position: "absolute",
+    bottom: 24,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 14,
+    zIndex: 999,
+    maxWidth: "90%",
+  },
+  toastSuccess: {
+    backgroundColor: "#16a34a",
+  },
+  toastError: {
+    backgroundColor: "#dc2626",
+  },
+  toastText: {
+    color: "#fff",
+    fontWeight: "700",
+    textAlign: "center",
   },
 });
