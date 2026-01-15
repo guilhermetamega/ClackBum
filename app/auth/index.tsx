@@ -1,7 +1,7 @@
 // app/auth/index.tsx
 import { makeRedirectUri } from "expo-auth-session";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
@@ -18,34 +18,58 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const router = useRouter();
+  const { redirectTo } = useLocalSearchParams<{ redirectTo?: string }>();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // 🔑 QUEM DECIDE PRA ONDE VAI É O redirectTo
   useEffect(() => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) router.replace("/(tabs)");
+      if (session) {
+        if (redirectTo) {
+          router.replace(redirectTo as any);
+        } else {
+          router.replace("/(tabs)");
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   async function signInEmail() {
-    if (!email || !password) return Alert.alert("Preencha email e senha");
+    if (!email || !password) {
+      Alert.alert("Preencha email e senha");
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+
     if (error) Alert.alert("Erro", error.message);
   }
 
   async function signUpEmail() {
-    if (!email || !password) return Alert.alert("Preencha email e senha");
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) Alert.alert("Erro", error.message);
-    else
+    if (!email || !password) {
+      Alert.alert("Preencha email e senha");
+      return;
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      Alert.alert("Erro", error.message);
+    } else {
       Alert.alert("Verifique seu email", "Confirme para completar o cadastro.");
+    }
   }
 
   const redirectUri = makeRedirectUri({ scheme: "clackbum" });
@@ -54,7 +78,9 @@ export default function AuthScreen() {
     try {
       await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: redirectUri },
+        options: {
+          redirectTo: redirectUri,
+        },
       });
     } catch (err: any) {
       Alert.alert("Erro OAuth", err.message || String(err));
@@ -80,7 +106,9 @@ export default function AuthScreen() {
           style={styles.input}
           onChangeText={setEmail}
           value={email}
+          autoCapitalize="none"
         />
+
         <TextInput
           placeholder="Senha"
           placeholderTextColor="#999"
@@ -150,10 +178,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     width: "100%",
-    shadowColor: "#000",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
   },
 
   title: {
@@ -181,6 +205,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
+
   buttonPrimaryText: {
     color: "#fff",
     fontWeight: "900",
@@ -191,6 +216,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     alignItems: "center",
   },
+
   linkButtonText: {
     color: "#FFA500",
     fontSize: 14,
@@ -202,11 +228,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 16,
   },
+
   divider: {
     flex: 1,
     height: 1,
     backgroundColor: "#444",
   },
+
   dividerText: {
     color: "#777",
     marginHorizontal: 8,
@@ -219,6 +247,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
+
   socialButtonText: {
     color: "#fff",
     fontWeight: "700",

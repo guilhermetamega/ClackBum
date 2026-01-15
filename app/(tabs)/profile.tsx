@@ -24,12 +24,15 @@ type Photo = {
   original_path: string;
   preview_path: string;
   status: "pending" | "approved" | "rejected";
-  visibility: Visibility;
+  visibility?: Visibility;
   imageUrl?: string;
 };
 
 export default function MyProfile() {
+  const [activeTab, setActiveTab] = useState<"own" | "purchases">("own");
+
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [purchases, setPurchases] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
@@ -39,17 +42,15 @@ export default function MyProfile() {
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
+  /* =========================
+     LOAD MINHAS FOTOS
+  ========================= */
   async function loadMyPhotos() {
-    setLoading(true);
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    if (!user) return;
 
     const { data } = await supabase
       .from("photos")
@@ -57,32 +58,78 @@ export default function MyProfile() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
-    if (data) {
-      const withUrls = await Promise.all(
-        data.map(async (photo) => {
-          const { data: signed } = await supabase.storage
-            .from("photos")
-            .createSignedUrl(photo.original_path, 60 * 5);
+    if (!data) return;
 
-          return {
-            ...photo,
-            imageUrl: signed?.signedUrl ?? "",
-          };
-        })
-      );
+    const withUrls = await Promise.all(
+      data.map(async (photo) => {
+        const { data: signed } = await supabase.storage
+          .from("photos")
+          .createSignedUrl(photo.original_path, 60 * 5);
 
-      setPhotos(withUrls);
-    }
+        return { ...photo, imageUrl: signed?.signedUrl ?? "" };
+      })
+    );
 
-    setLoading(false);
+    setPhotos(withUrls);
+  }
+
+  /* =========================
+     LOAD COMPRAS
+  ========================= */
+  async function loadPurchases() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("purchases")
+      .select(
+        `
+        photo_id,
+        photos (
+          id,
+          title,
+          original_path,
+          preview_path
+        )
+      `
+      )
+      .eq("buyer_id", user.id);
+
+    if (!data) return;
+
+    const formatted = await Promise.all(
+      data.map(async (row: any) => {
+        const photo = row.photos;
+
+        const { data: signed } = await supabase.storage
+          .from("photos")
+          .createSignedUrl(photo.original_path, 60 * 5);
+
+        return {
+          ...photo,
+          imageUrl: signed?.signedUrl ?? "",
+        };
+      })
+    );
+
+    setPurchases(formatted);
   }
 
   useFocusEffect(
     useCallback(() => {
-      loadMyPhotos();
+      setLoading(true);
+      Promise.all([loadMyPhotos(), loadPurchases()]).finally(() =>
+        setLoading(false)
+      );
     }, [])
   );
 
+  /* =========================
+     HELPERS
+  ========================= */
   function getVisibilityConfig(visibility: Visibility) {
     switch (visibility) {
       case "public":
@@ -103,21 +150,12 @@ export default function MyProfile() {
     if (photo.visibility === "private") return;
 
     const baseUrl = process.env.EXPO_PUBLIC_SITE_URL;
+    if (!baseUrl) return;
 
-    if (!baseUrl) {
-      console.warn("EXPO_PUBLIC_SITE_URL não definida");
-      return;
-    }
-
-    const publicUrl = `${baseUrl}/photo/${photo.id}`;
-
-    await Clipboard.setStringAsync(publicUrl);
+    await Clipboard.setStringAsync(`${baseUrl}/photo/${photo.id}`);
 
     setToastVisible(true);
-
-    if (toastTimeout.current) {
-      clearTimeout(toastTimeout.current);
-    }
+    toastTimeout.current && clearTimeout(toastTimeout.current);
 
     toastTimeout.current = setTimeout(() => {
       setToastVisible(false);
@@ -131,47 +169,33 @@ export default function MyProfile() {
   }
 
   async function handleDelete(photo: Photo) {
-    try {
-      //1️⃣ Apaga arquivos primeiro (mais seguro)
-
-      if (photo.original_path) {
-        const { error } = await supabase.storage
-          .from("photos")
-          .remove([photo.original_path]);
-
-        if (error) throw error;
-      }
-
-      if (photo.preview_path) {
-        const { error } = await supabase.storage
-          .from("photos_public")
-          .remove([photo.preview_path]);
-
-        if (error) throw error;
-      }
-
-      // 2️⃣ Agora apaga do banco
-      const { error: dbError } = await supabase
-        .from("photos")
-        .delete()
-        .eq("id", photo.id);
-
-      if (dbError) throw dbError;
-
-      // 3️⃣ Atualiza UI
-      setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
-      closeMenu();
-    } catch (err) {
-      console.error("Erro real ao excluir:", err);
+    if (photo.original_path) {
+      await supabase.storage.from("photos").remove([photo.original_path]);
     }
+    if (photo.preview_path) {
+      await supabase.storage.from("photos_public").remove([photo.preview_path]);
+    }
+
+    await supabase.from("photos").delete().eq("id", photo.id);
+    setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+    closeMenu();
   }
 
-  function renderItem({ item }: { item: Photo }) {
-    const visibility = getVisibilityConfig(item.visibility);
+  async function handleDownload(photo: Photo) {
+    router.push({
+      pathname: "/(hidden)/photo/[id]",
+      params: { id: photo.id, download: "true" },
+    });
+  }
+
+  /* =========================
+     RENDER: MINHAS FOTOS
+  ========================= */
+  function renderOwnPhoto({ item }: { item: Photo }) {
+    const visibility = getVisibilityConfig(item.visibility!);
 
     return (
       <View style={styles.card}>
-        {/* TOP ACTIONS */}
         <View style={styles.topActions}>
           <Pressable
             disabled={item.visibility === "private"}
@@ -191,7 +215,6 @@ export default function MyProfile() {
           </Pressable>
         </View>
 
-        {/* VISIBILITY BADGE */}
         <View
           style={[
             styles.visibilityBadge,
@@ -202,20 +225,33 @@ export default function MyProfile() {
           <Text style={styles.visibilityText}>{visibility.label}</Text>
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() =>
-            router.push({
-              pathname: "/(hidden)/photo/[id]",
-              params: { id: item.id },
-            })
-          }
-        >
-          <Image source={{ uri: item.imageUrl }} style={styles.image} />
-        </TouchableOpacity>
+        <Image source={{ uri: item.imageUrl }} style={styles.image} />
 
         <View style={styles.cardFooter}>
           <Text style={styles.title}>{item.title}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  /* =========================
+     RENDER: COMPRAS
+  ========================= */
+  function renderPurchase({ item }: { item: Photo }) {
+    return (
+      <View style={styles.card}>
+        <Image source={{ uri: item.imageUrl }} style={styles.image} />
+
+        <View style={styles.cardFooter}>
+          <Text style={styles.title}>{item.title}</Text>
+
+          <TouchableOpacity
+            style={styles.downloadBtn}
+            onPress={() => handleDownload(item)}
+          >
+            <Ionicons name="download" size={18} color="#000" />
+            <Text style={styles.downloadText}>Download</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -235,19 +271,32 @@ export default function MyProfile() {
         Meu Perfil <UserActionButton />
       </Text>
 
+      {/* TABS */}
+      <View style={styles.tabs}>
+        <Pressable
+          onPress={() => setActiveTab("own")}
+          style={[styles.tab, activeTab === "own" && styles.tabActive]}
+        >
+          <Text style={styles.tabText}>Minhas Fotos</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => setActiveTab("purchases")}
+          style={[styles.tab, activeTab === "purchases" && styles.tabActive]}
+        >
+          <Text style={styles.tabText}>Compras</Text>
+        </Pressable>
+      </View>
+
       <FlatList
-        data={photos}
+        data={activeTab === "own" ? photos : purchases}
         keyExtractor={(item) => item.id}
-        renderItem={renderItem}
+        renderItem={activeTab === "own" ? renderOwnPhoto : renderPurchase}
         showsVerticalScrollIndicator={false}
       />
 
       {/* ACTION SHEET */}
-      <Modal
-        transparent
-        visible={menuVisible && !!selectedPhoto}
-        animationType="fade"
-      >
+      <Modal transparent visible={menuVisible} animationType="fade">
         <Pressable style={styles.overlay} onPress={closeMenu}>
           <View style={styles.sheet}>
             <Pressable
@@ -263,9 +312,7 @@ export default function MyProfile() {
                 selectedPhoto && updateVisibility(selectedPhoto.id, "unlisted")
               }
             >
-              <Text style={styles.sheetItem}>
-                🔗 Tornar Não Listada (Acesso Apenas de Pessoas Com o Link)
-              </Text>
+              <Text style={styles.sheetItem}>🔗 Tornar Não Listada</Text>
             </Pressable>
 
             <Pressable
@@ -279,10 +326,7 @@ export default function MyProfile() {
             <View style={styles.divider} />
 
             <Pressable
-              onPress={() => {
-                if (!selectedPhoto) return;
-                handleDelete(selectedPhoto);
-              }}
+              onPress={() => selectedPhoto && handleDelete(selectedPhoto)}
             >
               <Text style={[styles.sheetItem, { color: "#e74c3c" }]}>
                 🗑 Excluir
@@ -292,7 +336,6 @@ export default function MyProfile() {
         </Pressable>
       </Modal>
 
-      {/* TOAST */}
       {toastVisible && (
         <View style={styles.toast}>
           <Text style={styles.toastText}>Link copiado</Text>
@@ -302,15 +345,38 @@ export default function MyProfile() {
   );
 }
 
+/* =========================
+   STYLES
+========================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f0f", padding: 16 },
   header: {
     fontSize: 26,
     fontWeight: "900",
     color: "#FFA500",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  tabs: {
+    flexDirection: "row",
+    marginBottom: 16,
+    gap: 10,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+  },
+  tabActive: {
+    backgroundColor: "#FFA500",
+  },
+  tabText: {
+    fontWeight: "900",
+    color: "#000",
+  },
 
   card: {
     backgroundColor: "#1a1a1a",
@@ -344,6 +410,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   visibilityText: { fontSize: 11, fontWeight: "900", color: "#000" },
+
+  downloadBtn: {
+    marginTop: 10,
+    backgroundColor: "#FFA500",
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 8,
+  },
+  downloadText: {
+    fontWeight: "900",
+    color: "#000",
+  },
 
   overlay: {
     flex: 1,

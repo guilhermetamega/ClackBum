@@ -17,6 +17,7 @@ type Photo = {
   title: string;
   description: string;
   preview_path: string;
+  original_path: string;
   visibility: "public" | "unlisted" | "private";
   user_id: string;
   price: number;
@@ -37,6 +38,8 @@ export default function PhotoScreen() {
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(true);
   const [buying, setBuying] = useState(false);
+  const [canDownload, setCanDownload] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     fetchPhoto();
@@ -52,7 +55,7 @@ export default function PhotoScreen() {
     const { data, error } = await supabase
       .from("photos")
       .select(
-        "id, title, description, preview_path, visibility, user_id, price, status"
+        "id, title, description, preview_path, original_path, visibility, user_id, price, status"
       )
       .eq("id", id)
       .eq("status", "approved")
@@ -63,28 +66,73 @@ export default function PhotoScreen() {
       return;
     }
 
-    // 🔒 regra de acesso
+    // 🔒 Acesso privado
     if (data.visibility === "private" && (!user || user.id !== data.user_id)) {
       router.replace("/");
       return;
     }
 
     setPhoto(data);
+
+    if (user) {
+      if (user.id === data.user_id) {
+        setIsOwner(true);
+        setCanDownload(true);
+      } else {
+        const { data: purchase } = await supabase
+          .from("purchases")
+          .select("id")
+          .eq("buyer_id", user.id)
+          .eq("photo_id", data.id)
+          .eq("status", "approved")
+          .maybeSingle();
+
+        if (purchase) setCanDownload(true);
+      }
+    }
+
     setLoading(false);
   }
 
   async function handleBuy() {
     if (!photo) return;
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 🚪 NÃO LOGADO → LOGIN
+    if (!user) {
+      router.push({
+        pathname: "/auth",
+        params: { redirectTo: `/photo/${photo.id}` },
+      });
+      return;
+    }
+
     try {
       setBuying(true);
       await pay(photo.id);
-      Alert.alert("Sucesso", "Pagamento confirmado 🎉");
-    } catch (err) {
+    } catch {
       Alert.alert("Erro", "Pagamento cancelado ou falhou");
     } finally {
       setBuying(false);
     }
+  }
+
+  async function handleDownload() {
+    if (!photo) return;
+
+    const { data } = await supabase.storage
+      .from("photos")
+      .createSignedUrl(photo.original_path, 60 * 5);
+
+    if (!data?.signedUrl) {
+      Alert.alert("Erro", "Não foi possível gerar o download");
+      return;
+    }
+
+    window.open(data.signedUrl, "_blank");
   }
 
   if (loading) {
@@ -112,19 +160,34 @@ export default function PhotoScreen() {
       <Stack.Screen
         options={{
           title: photo.title,
-          headerRight: () => (
-            <TouchableOpacity
-              disabled={buying}
-              onPress={handleBuy}
-              style={styles.buyButton}
-            >
-              <Text style={styles.buyText}>
-                {buying
-                  ? "Processando..."
-                  : `Comprar por ${formatPrice(photo.price)}`}
-              </Text>
-            </TouchableOpacity>
-          ),
+          headerRight: () => {
+            if (isOwner) return null;
+
+            if (canDownload) {
+              return (
+                <TouchableOpacity
+                  onPress={handleDownload}
+                  style={styles.downloadButton}
+                >
+                  <Text style={styles.downloadText}>Download</Text>
+                </TouchableOpacity>
+              );
+            }
+
+            return (
+              <TouchableOpacity
+                disabled={buying}
+                onPress={handleBuy}
+                style={styles.buyButton}
+              >
+                <Text style={styles.buyText}>
+                  {buying
+                    ? "Processando..."
+                    : `Comprar por ${formatPrice(photo.price)}`}
+                </Text>
+              </TouchableOpacity>
+            );
+          },
         }}
       />
 
@@ -147,6 +210,9 @@ export default function PhotoScreen() {
   );
 }
 
+/* =========================
+   STYLES
+========================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f0f" },
   center: {
@@ -173,6 +239,7 @@ const styles = StyleSheet.create({
     color: "#f1c40f",
     fontWeight: "700",
   },
+
   buyButton: {
     marginRight: 12,
     backgroundColor: "#FFA500",
@@ -181,6 +248,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   buyText: {
+    color: "#000",
+    fontWeight: "900",
+    fontSize: 14,
+  },
+
+  downloadButton: {
+    marginRight: 12,
+    backgroundColor: "#22c55e",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  downloadText: {
     color: "#000",
     fontWeight: "900",
     fontSize: 14,
