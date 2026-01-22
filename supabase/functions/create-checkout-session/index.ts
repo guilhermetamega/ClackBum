@@ -15,7 +15,7 @@ serve(async (req) => {
 
   try {
     /* ======================
-       AUTH HEADER
+       AUTH
     ====================== */
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -24,17 +24,12 @@ serve(async (req) => {
 
     const jwt = authHeader.replace("Bearer ", "");
 
-    /* ======================
-       SUPABASE CLIENTS
-    ====================== */
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       {
         global: {
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-          },
+          headers: { Authorization: `Bearer ${jwt}` },
         },
       }
     );
@@ -46,50 +41,57 @@ serve(async (req) => {
 
     const {
       data: { user },
-      error: userError,
     } = await supabaseUser.auth.getUser();
 
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401,
-        headers: corsHeaders,
-      });
+    if (!user) {
+      return new Response("Unauthorized", { status: 401 });
     }
 
     /* ======================
        BODY
     ====================== */
     const { photoId } = await req.json();
-
     if (!photoId) {
-      return new Response(JSON.stringify({ error: "photoId missing" }), {
-        status: 400,
-        headers: corsHeaders,
-      });
+      throw new Error("photoId missing");
     }
 
     /* ======================
        STRIPE
     ====================== */
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
-      apiVersion: "2023-10-16",
+      apiVersion: "2024-06-20",
     });
 
     /* ======================
-       PHOTO
+       PHOTO + SELLER
     ====================== */
-    const { data: photo, error: photoError } = await supabaseAdmin
+    const { data: photo } = await supabaseAdmin
       .from("photos")
       .select("id, title, price, user_id")
       .eq("id", photoId)
       .single();
 
-    if (photoError || !photo) {
+    if (!photo) {
       throw new Error("Foto não encontrada");
     }
 
+    // Não pode comprar própria foto
+    if (photo.user_id === user.id) {
+      throw new Error("Você não pode comprar sua própria foto");
+    }
+
+    const { data: seller } = await supabaseAdmin
+      .from("users")
+      .select("stripe_account_id, stripe_charges_enabled")
+      .eq("id", photo.user_id)
+      .single();
+
+    if (!seller?.stripe_account_id || !seller.stripe_charges_enabled) {
+      throw new Error("Fotógrafo não habilitado para recebimentos");
+    }
+
     /* ======================
-       BUYER (CUSTOMER)
+       BUYER CUSTOMER
     ====================== */
     const { data: buyer } = await supabaseAdmin
       .from("users")
@@ -114,20 +116,34 @@ serve(async (req) => {
     }
 
     /* ======================
-       CHECKOUT SESSION
+       SPLIT CALCULATION
+    ====================== */
+    const amount = Math.round(photo.price * 100);
+    const platformFee = Math.round(amount * 0.15); // 15%
+
+    /* ======================
+       CHECKOUT
     ====================== */
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: customerId,
 
+      payment_intent_data: {
+        application_fee_amount: platformFee,
+
+        transfer_data: {
+          destination: seller.stripe_account_id,
+        },
+
+        on_behalf_of: seller.stripe_account_id,
+      },
+
       line_items: [
         {
           price_data: {
             currency: "brl",
-            product_data: {
-              name: photo.title,
-            },
-            unit_amount: Math.round(photo.price * 100),
+            product_data: { name: photo.title },
+            unit_amount: amount,
           },
           quantity: 1,
         },
@@ -144,10 +160,7 @@ serve(async (req) => {
     });
 
     return new Response(JSON.stringify({ url: session.url }), {
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/json",
-      },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("🔥 CHECKOUT ERROR:", err);

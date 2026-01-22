@@ -1,4 +1,3 @@
-import UserActionButton from "@/components/userActionButton";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -29,18 +28,56 @@ type Photo = {
 };
 
 export default function MyProfile() {
-  const [activeTab, setActiveTab] = useState<"own" | "purchases">("own");
+  const router = useRouter();
 
+  const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+
+  const [activeTab, setActiveTab] = useState<"own" | "purchases">("own");
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [purchases, setPurchases] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [balance, setBalance] = useState<number | null>(null);
+  const [balancePending, setBalancePending] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
 
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const router = useRouter();
+
+  /* =========================
+     LOAD BALANCE (STRIPE)
+  ========================= */
+  async function loadBalance() {
+    try {
+      setBalanceLoading(true);
+
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      if (!token) return;
+
+      const res = await fetch(
+        `${SUPABASE_URL}/functions/v1/stripe-get-balance`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+      console.log("💰 Balance:", data);
+
+      setBalance(data.available ?? 0);
+      setBalancePending(data.pending ?? 0);
+    } catch (err) {
+      console.error("Erro ao carregar saldo", err);
+    } finally {
+      setBalanceLoading(false);
+    }
+  }
 
   /* =========================
      LOAD MINHAS FOTOS
@@ -121,8 +158,9 @@ export default function MyProfile() {
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
-      Promise.all([loadMyPhotos(), loadPurchases()]).finally(() =>
-        setLoading(false)
+
+      Promise.all([loadMyPhotos(), loadPurchases(), loadBalance()]).finally(
+        () => setLoading(false)
       );
     }, [])
   );
@@ -189,74 +227,8 @@ export default function MyProfile() {
   }
 
   /* =========================
-     RENDER: MINHAS FOTOS
+     RENDER
   ========================= */
-  function renderOwnPhoto({ item }: { item: Photo }) {
-    const visibility = getVisibilityConfig(item.visibility!);
-
-    return (
-      <View style={styles.card}>
-        <View style={styles.topActions}>
-          <Pressable
-            disabled={item.visibility === "private"}
-            style={{ opacity: item.visibility === "private" ? 0.4 : 1 }}
-            onPress={() => handleShare(item)}
-          >
-            <Ionicons name="share-social" size={20} color="#fff" />
-          </Pressable>
-
-          <Pressable
-            onPress={() => {
-              setSelectedPhoto(item);
-              setMenuVisible(true);
-            }}
-          >
-            <Ionicons name="ellipsis-vertical" size={20} color="#fff" />
-          </Pressable>
-        </View>
-
-        <View
-          style={[
-            styles.visibilityBadge,
-            { backgroundColor: visibility.color },
-          ]}
-        >
-          <Ionicons name={visibility.icon as any} size={12} color="#000" />
-          <Text style={styles.visibilityText}>{visibility.label}</Text>
-        </View>
-
-        <Image source={{ uri: item.imageUrl }} style={styles.image} />
-
-        <View style={styles.cardFooter}>
-          <Text style={styles.title}>{item.title}</Text>
-        </View>
-      </View>
-    );
-  }
-
-  /* =========================
-     RENDER: COMPRAS
-  ========================= */
-  function renderPurchase({ item }: { item: Photo }) {
-    return (
-      <View style={styles.card}>
-        <Image source={{ uri: item.imageUrl }} style={styles.image} />
-
-        <View style={styles.cardFooter}>
-          <Text style={styles.title}>{item.title}</Text>
-
-          <TouchableOpacity
-            style={styles.downloadBtn}
-            onPress={() => handleDownload(item)}
-          >
-            <Ionicons name="download" size={18} color="#000" />
-            <Text style={styles.downloadText}>Download</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -267,9 +239,47 @@ export default function MyProfile() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>
-        Meu Perfil <UserActionButton />
-      </Text>
+      {/* HEADER */}
+      <View style={styles.headerRow}>
+        <View style={{ width: 32 }} />
+
+        <View style={styles.balanceBox}>
+          <Text style={styles.balanceLabel}>Carteira</Text>
+
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            {/* DISPONÍVEL */}
+            <View style={{ alignItems: "center" }}>
+              <Text style={styles.balanceSubLabel}>Disponível</Text>
+              <Text style={styles.balanceValue}>
+                {balance !== null ? `R$ ${balance.toFixed(2)}` : "--"}
+              </Text>
+            </View>
+
+            {/* PENDENTE */}
+            <View style={{ alignItems: "center" }}>
+              <Text style={styles.balanceSubLabel}>Pendente</Text>
+              <Text style={styles.balancePending}>
+                {balancePending !== null
+                  ? `R$ ${balancePending.toFixed(2)}`
+                  : "--"}
+              </Text>
+            </View>
+
+            {/* REFRESH */}
+            <Pressable onPress={loadBalance} disabled={balanceLoading}>
+              {balanceLoading ? (
+                <ActivityIndicator size="small" color="#FFA500" />
+              ) : (
+                <Ionicons name="refresh" size={20} color="#FFA500" />
+              )}
+            </Pressable>
+          </View>
+        </View>
+
+        <Pressable onPress={() => router.push("/settings")}>
+          <Ionicons name="settings-outline" size={26} color="#FFA500" />
+        </Pressable>
+      </View>
 
       {/* TABS */}
       <View style={styles.tabs}>
@@ -291,7 +301,80 @@ export default function MyProfile() {
       <FlatList
         data={activeTab === "own" ? photos : purchases}
         keyExtractor={(item) => item.id}
-        renderItem={activeTab === "own" ? renderOwnPhoto : renderPurchase}
+        renderItem={
+          activeTab === "own"
+            ? ({ item }) => {
+                const visibility = getVisibilityConfig(item.visibility!);
+                return (
+                  <View style={styles.card}>
+                    <View style={styles.topActions}>
+                      <Pressable
+                        disabled={item.visibility === "private"}
+                        style={{
+                          opacity: item.visibility === "private" ? 0.4 : 1,
+                        }}
+                        onPress={() => handleShare(item)}
+                      >
+                        <Ionicons name="share-social" size={20} color="#fff" />
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => {
+                          setSelectedPhoto(item);
+                          setMenuVisible(true);
+                        }}
+                      >
+                        <Ionicons
+                          name="ellipsis-vertical"
+                          size={20}
+                          color="#fff"
+                        />
+                      </Pressable>
+                    </View>
+
+                    <View
+                      style={[
+                        styles.visibilityBadge,
+                        { backgroundColor: visibility.color },
+                      ]}
+                    >
+                      <Ionicons
+                        name={visibility.icon as any}
+                        size={12}
+                        color="#000"
+                      />
+                      <Text style={styles.visibilityText}>
+                        {visibility.label}
+                      </Text>
+                    </View>
+
+                    <Image
+                      source={{ uri: item.imageUrl }}
+                      style={styles.image}
+                    />
+
+                    <View style={styles.cardFooter}>
+                      <Text style={styles.title}>{item.title}</Text>
+                    </View>
+                  </View>
+                );
+              }
+            : ({ item }) => (
+                <View style={styles.card}>
+                  <Image source={{ uri: item.imageUrl }} style={styles.image} />
+                  <View style={styles.cardFooter}>
+                    <Text style={styles.title}>{item.title}</Text>
+                    <TouchableOpacity
+                      style={styles.downloadBtn}
+                      onPress={() => handleDownload(item)}
+                    >
+                      <Ionicons name="download" size={18} color="#000" />
+                      <Text style={styles.downloadText}>Download</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )
+        }
         showsVerticalScrollIndicator={false}
       />
 
@@ -350,19 +433,31 @@ export default function MyProfile() {
 ========================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f0f", padding: 16 },
-  header: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#FFA500",
-    marginBottom: 12,
-  },
   loading: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  tabs: {
+  headerRow: {
     flexDirection: "row",
-    marginBottom: 16,
-    gap: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
   },
+  balanceBox: { alignItems: "center" },
+  balanceLabel: { color: "#aaa", fontSize: 13, fontWeight: "700" },
+  balanceValue: { color: "#FFA500", fontSize: 28, fontWeight: "900" },
+
+  balanceSubLabel: {
+    color: "#aaa",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  balancePending: {
+    color: "#f1c40f", // amarelo = aguardando liberação
+    fontSize: 22,
+    fontWeight: "800",
+  },
+
+  tabs: { flexDirection: "row", marginBottom: 16, gap: 10 },
   tab: {
     flex: 1,
     paddingVertical: 10,
@@ -370,13 +465,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#1a1a1a",
     alignItems: "center",
   },
-  tabActive: {
-    backgroundColor: "#FFA500",
-  },
-  tabText: {
-    fontWeight: "900",
-    color: "#000",
-  },
+  tabActive: { backgroundColor: "#FFA500" },
+  tabText: { fontWeight: "900", color: "#000" },
 
   card: {
     backgroundColor: "#1a1a1a",
@@ -421,10 +511,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  downloadText: {
-    fontWeight: "900",
-    color: "#000",
-  },
+  downloadText: { fontWeight: "900", color: "#000" },
 
   overlay: {
     flex: 1,
@@ -458,9 +545,5 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 30,
   },
-  toastText: {
-    color: "#fff",
-    fontWeight: "900",
-    fontSize: 14,
-  },
+  toastText: { color: "#fff", fontWeight: "900", fontSize: 14 },
 });
