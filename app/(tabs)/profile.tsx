@@ -41,8 +41,6 @@ export default function MyProfile() {
   const [balancePending, setBalancePending] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
-  const [withdrawLoading, setWithdrawLoading] = useState(false);
-
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
@@ -78,44 +76,6 @@ export default function MyProfile() {
       console.error("Erro ao carregar saldo", err);
     } finally {
       setBalanceLoading(false);
-    }
-  }
-
-  /* =========================
-  SAQUE DA CARTEIRA STRIPE
-  ========================= */
-
-  async function handleWithdraw() {
-    try {
-      setWithdrawLoading(true);
-
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-      if (!token) return;
-
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/stripe-withdraw`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.error ?? "Erro ao sacar");
-        return;
-      }
-
-      alert(`Saque solicitado: R$ ${data.amount.toFixed(2)}`);
-
-      // Atualiza carteira após saque
-      loadBalance();
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao solicitar saque");
-    } finally {
-      setWithdrawLoading(false);
     }
   }
 
@@ -315,24 +275,6 @@ export default function MyProfile() {
             </Pressable>
           </View>
         </View>
-
-        <TouchableOpacity
-          style={[
-            styles.withdrawBtn,
-            (!balance || balance <= 0) && { opacity: 0.4 },
-          ]}
-          disabled={!balance || balance <= 0 || withdrawLoading}
-          onPress={handleWithdraw}
-        >
-          {withdrawLoading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <>
-              <Ionicons name="cash-outline" size={18} color="#000" />
-              <Text style={styles.withdrawText}>Sacar saldo</Text>
-            </>
-          )}
-        </TouchableOpacity>
 
         <Pressable onPress={() => router.push("/settings")}>
           <Ionicons name="settings-outline" size={26} color="#FFA500" />
@@ -604,21 +546,4 @@ const styles = StyleSheet.create({
     borderRadius: 30,
   },
   toastText: { color: "#fff", fontWeight: "900", fontSize: 14 },
-
-  withdrawBtn: {
-    marginTop: 12,
-    backgroundColor: "#2ecc71",
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 8,
-  },
-
-  withdrawText: {
-    fontWeight: "900",
-    color: "#000",
-    fontSize: 14,
-  },
 });

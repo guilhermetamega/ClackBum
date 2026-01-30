@@ -130,9 +130,12 @@ serve(async (req) => {
 
       payment_intent_data: {
         application_fee_amount: platformFee,
+
         transfer_data: {
           destination: seller.stripe_account_id,
         },
+
+        on_behalf_of: seller.stripe_account_id,
       },
 
       line_items: [
