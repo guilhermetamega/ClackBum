@@ -48,16 +48,44 @@ serve(async (req) => {
       details_submitted: account.details_submitted,
     });
 
-    const { error } = await supabase
+    // 1️⃣ Atualiza status do seller no banco
+    const { data: user, error } = await supabase
       .from("users")
       .update({
         stripe_charges_enabled: account.charges_enabled,
         stripe_details_submitted: account.details_submitted,
       })
-      .eq("stripe_account_id", account.id);
+      .eq("stripe_account_id", account.id)
+      .select("stripe_pix_enabled")
+      .single();
 
     if (error) {
       console.error("❌ Failed to update user:", error);
+      return new Response("db error", { status: 500 });
+    }
+
+    // 2️⃣ Ativa Pix automaticamente (UMA ÚNICA VEZ)
+    if (account.charges_enabled && !user?.stripe_pix_enabled) {
+      try {
+        await stripe.accounts.update(account.id, {
+          settings: {
+            payments: {
+              payment_method_options: {
+                pix: { enabled: true },
+              },
+            },
+          },
+        });
+
+        await supabase
+          .from("users")
+          .update({ stripe_pix_enabled: true })
+          .eq("stripe_account_id", account.id);
+
+        console.log("✅ Pix ativado com sucesso para:", account.id);
+      } catch (err) {
+        console.error("❌ Erro ao ativar Pix:", err);
+      }
     }
   }
 
