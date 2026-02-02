@@ -133,7 +133,9 @@ export default function PhotoScreen() {
       return;
     }
 
-    window.open(data.signedUrl, "_blank");
+    if (typeof window !== "undefined") {
+      window.open(data.signedUrl, "_blank");
+    }
   }
 
   if (loading) {
