@@ -1,4 +1,3 @@
-import { useStripePayment } from "@/hooks/useStripePayment";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -11,7 +10,9 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../../lib/supabaseClient";
-
+export const unstable_settings = {
+  ssr: false,
+};
 type Photo = {
   id: string;
   title: string;
@@ -55,7 +56,7 @@ export default function PhotoScreen() {
     const { data, error } = await supabase
       .from("photos")
       .select(
-        "id, title, description, preview_path, original_path, visibility, user_id, price, status"
+        "id, title, description, preview_path, original_path, visibility, user_id, price, status",
       )
       .eq("id", id)
       .eq("status", "approved")
