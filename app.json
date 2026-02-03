@@ -47,7 +47,7 @@
     "web": {
       // "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "bundler": "metro"
+      "bundler": "webpack"
     },
     "plugins": [
       "expo-router",
