@@ -1,5 +1,8 @@
 {
-  "buildCommand": "npx expo export:web",
+  "framework": "expo",
+  "buildCommand": "npx expo start --web",
+  "devCommand": "npx expo start --web",
+  "installCommand": "npm install",
   "outputDirectory": "dist",
   "routes": [
     {
