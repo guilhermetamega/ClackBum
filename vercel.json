@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx expo export -p -web",
+  "buildCommand": "npx expo export -p web",
   "installCommand": "npm install",
   "outputDirectory": "dist",
   "routes": [
