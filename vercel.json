@@ -1,9 +1,6 @@
 {
-  "framework": "expo",
-  "buildCommand": "npx expo start --web",
-  "outputDirectory": "web-build",
-  "devCommand": "npx expo start --web",
-  "installCommand": "npm install",
+  "buildCommand": "npx expo export:web",
+  "outputDirectory": "dist",
   "routes": [
     {
       "src": "/(.*)",
