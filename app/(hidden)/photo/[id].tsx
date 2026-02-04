@@ -11,9 +11,11 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../../lib/supabaseClient";
+
 export const unstable_settings = {
   ssr: false,
 };
+
 type Photo = {
   id: string;
   title: string;
@@ -35,7 +37,7 @@ function formatPrice(value: number) {
 export default function PhotoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { pay } = useStripePayment();
+  const { pay, supported } = useStripePayment();
 
   const [photo, setPhoto] = useState<Photo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,12 +105,19 @@ export default function PhotoScreen() {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // 🚪 NÃO LOGADO → LOGIN
     if (!user) {
       router.push({
         pathname: "/auth",
         params: { redirectTo: `/photo/${photo.id}` },
       });
+      return;
+    }
+
+    if (!supported) {
+      Alert.alert(
+        "Pagamento indisponível",
+        "Pagamentos ainda não estão disponíveis nesta plataforma.",
+      );
       return;
     }
 
@@ -163,7 +172,14 @@ export default function PhotoScreen() {
     <>
       <Stack.Screen
         options={{
+          headerShown: true,
           title: photo.title,
+          headerBackTitleVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.backText}>Voltar</Text>
+            </TouchableOpacity>
+          ),
           headerRight: () => {
             if (isOwner) return null;
 
@@ -242,6 +258,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: "#f1c40f",
     fontWeight: "700",
+  },
+
+  backText: {
+    color: "#FFA500",
+    fontWeight: "900",
+    marginLeft: 12,
   },
 
   buyButton: {
