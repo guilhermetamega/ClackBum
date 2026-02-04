@@ -1,4 +1,4 @@
-import { useStripePayment } from "@/hooks/useStripePayment.native";
+import { useStripePayment } from "@/hooks/useStripePayment";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
