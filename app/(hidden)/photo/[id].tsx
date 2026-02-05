@@ -99,6 +99,7 @@ export default function PhotoScreen() {
   }
 
   async function handleBuy() {
+    console.log("Chamando handleBuy");
     if (!photo) return;
 
     const {
@@ -126,10 +127,7 @@ export default function PhotoScreen() {
       await pay(photo.id);
     } catch (err: any) {
       console.error("❌ Erro no pagamento:", err);
-      Alert.alert(
-        "Erro no pagamento",
-        err?.message || "Falha ao iniciar pagamento",
-      );
+      alert(`Erro no pagamento: ${err?.message}`);
     } finally {
       setBuying(false);
     }
