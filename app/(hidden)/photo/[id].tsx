@@ -70,7 +70,6 @@ export default function PhotoScreen() {
       return;
     }
 
-    // 🔒 Acesso privado
     if (data.visibility === "private" && (!user || user.id !== data.user_id)) {
       router.replace("/");
       return;
@@ -99,7 +98,8 @@ export default function PhotoScreen() {
   }
 
   async function handleBuy() {
-    console.log("Chamando handleBuy");
+    console.log("🟢 Chamando handleBuy");
+
     if (!photo) return;
 
     const {
@@ -117,7 +117,7 @@ export default function PhotoScreen() {
     if (!supported) {
       Alert.alert(
         "Pagamento indisponível",
-        "Pagamentos ainda não estão disponíveis nesta plataforma.",
+        "Pagamentos não estão disponíveis nesta plataforma.",
       );
       return;
     }
@@ -127,7 +127,10 @@ export default function PhotoScreen() {
       await pay(photo.id);
     } catch (err: any) {
       console.error("❌ Erro no pagamento:", err);
-      alert(`Erro no pagamento: ${err?.message}`);
+      Alert.alert(
+        "Erro no pagamento",
+        err?.message || "Falha ao iniciar pagamento",
+      );
     } finally {
       setBuying(false);
     }
@@ -172,6 +175,7 @@ export default function PhotoScreen() {
 
   return (
     <>
+      {/* HEADER SIMPLES: APENAS NAVEGAÇÃO */}
       <Stack.Screen
         options={{
           headerShown: true,
@@ -182,34 +186,6 @@ export default function PhotoScreen() {
               <Text style={styles.backText}>Voltar</Text>
             </TouchableOpacity>
           ),
-          headerRight: () => {
-            if (isOwner) return null;
-
-            if (canDownload) {
-              return (
-                <TouchableOpacity
-                  onPress={handleDownload}
-                  style={styles.downloadButton}
-                >
-                  <Text style={styles.downloadText}>Download</Text>
-                </TouchableOpacity>
-              );
-            }
-
-            return (
-              <TouchableOpacity
-                disabled={buying}
-                onPress={handleBuy}
-                style={styles.buyButton}
-              >
-                <Text style={styles.buyText}>
-                  {buying
-                    ? "Processando..."
-                    : `Comprar por ${formatPrice(photo.price)}`}
-                </Text>
-              </TouchableOpacity>
-            );
-          },
         }}
       />
 
@@ -226,6 +202,30 @@ export default function PhotoScreen() {
           {photo.visibility === "unlisted" && (
             <Text style={styles.unlisted}>🔗 Foto com link privado</Text>
           )}
+
+          {/* BOTÕES DE AÇÃO NO CORPO DA TELA */}
+          {!isOwner && !canDownload && (
+            <TouchableOpacity
+              disabled={buying}
+              onPress={handleBuy}
+              style={styles.buyMainButton}
+            >
+              <Text style={styles.buyMainText}>
+                {buying
+                  ? "Processando..."
+                  : `Comprar por ${formatPrice(photo.price)}`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {canDownload && (
+            <TouchableOpacity
+              onPress={handleDownload}
+              style={styles.downloadMainButton}
+            >
+              <Text style={styles.downloadMainText}>Download</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </>
@@ -237,25 +237,36 @@ export default function PhotoScreen() {
 ========================= */
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f0f0f" },
+
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#0f0f0f",
   },
-  image: { width: "100%", height: 360 },
-  content: { padding: 16 },
+
+  image: {
+    width: "100%",
+    height: 360,
+  },
+
+  content: {
+    padding: 16,
+  },
+
   title: {
     color: "#fff",
     fontSize: 22,
     fontWeight: "900",
     marginBottom: 8,
   },
+
   description: {
     color: "#ccc",
     fontSize: 15,
     lineHeight: 20,
   },
+
   unlisted: {
     marginTop: 12,
     color: "#f1c40f",
@@ -268,29 +279,31 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
 
-  buyButton: {
-    marginRight: 12,
+  buyMainButton: {
+    marginTop: 20,
     backgroundColor: "#FFA500",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  buyText: {
-    color: "#000",
-    fontWeight: "900",
-    fontSize: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
   },
 
-  downloadButton: {
-    marginRight: 12,
-    backgroundColor: "#22c55e",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  downloadText: {
+  buyMainText: {
     color: "#000",
     fontWeight: "900",
-    fontSize: 14,
+    fontSize: 16,
+  },
+
+  downloadMainButton: {
+    marginTop: 20,
+    backgroundColor: "#22c55e",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  downloadMainText: {
+    color: "#000",
+    fontWeight: "900",
+    fontSize: 16,
   },
 });
