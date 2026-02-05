@@ -124,8 +124,12 @@ export default function PhotoScreen() {
     try {
       setBuying(true);
       await pay(photo.id);
-    } catch {
-      Alert.alert("Erro", "Pagamento cancelado ou falhou");
+    } catch (err: any) {
+      console.error("❌ Erro no pagamento:", err);
+      Alert.alert(
+        "Erro no pagamento",
+        err?.message || "Falha ao iniciar pagamento",
+      );
     } finally {
       setBuying(false);
     }
