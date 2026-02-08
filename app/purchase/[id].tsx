@@ -30,7 +30,7 @@ export default function PurchaseScreen() {
 
     if (!session.session) {
       Alert.alert("Login necessário", "Faça login para comprar esta foto.");
-      return router.replace("/auth/login");
+      return router.replace("/auth");
     }
 
     fetchPhoto();
@@ -45,7 +45,7 @@ export default function PurchaseScreen() {
         users (
           name
         )
-      `
+      `,
       )
       .eq("id", id)
       .single();
@@ -62,7 +62,7 @@ export default function PurchaseScreen() {
   async function handlePurchase() {
     Alert.alert(
       "Pagamento realizado! 🎉",
-      "Você agora pode baixar a foto em alta qualidade."
+      "Você agora pode baixar a foto em alta qualidade.",
     );
 
     // Depois vamos implementar liberação do arquivo real

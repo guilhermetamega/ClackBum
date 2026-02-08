@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { supabase } from "../lib/supabaseClient";
 
+import { AppProvider } from "@/components/appContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export default function RootLayout() {
@@ -60,13 +61,15 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <AppProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </AppProvider>
   );
 }

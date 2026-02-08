@@ -1,18 +1,16 @@
+import { useApp } from "@/components/appContext";
 import { makeRedirectUri } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { supabase } from "../../lib/supabaseClient";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
+  const { platform } = useApp(); // 🔥 vem do boot do app
+
   const signInWithGoogle = async () => {
+    // ✅ redirect único, controlado
     const redirectTo = makeRedirectUri({
       scheme: "clackbum",
       path: "auth/callback",
@@ -20,20 +18,24 @@ export default function AuthScreen() {
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo },
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true, // 🔥 evita conflitos web/mobile
+      },
     });
 
     if (error) {
-      console.error("Erro no login Google:", error.message);
+      console.error("❌ Erro no login Google:", error.message);
       return;
     }
 
-    if (data?.url) {
-      if (Platform.OS === "web") {
-        window.location.href = data.url;
-      } else {
-        await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      }
+    if (!data?.url) return;
+
+    // ✅ decisão centralizada
+    if (platform === "web") {
+      window.location.href = data.url;
+    } else {
+      await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
     }
   };
 
@@ -61,7 +63,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 36,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#fff",
     marginBottom: 8,
   },
@@ -75,11 +77,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     paddingVertical: 14,
     paddingHorizontal: 32,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   buttonText: {
     color: "#000",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "800",
   },
 });

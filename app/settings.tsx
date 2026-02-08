@@ -1,10 +1,10 @@
+import { useApp } from "@/components/appContext";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Linking,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -22,61 +22,44 @@ const FUNCTIONS_URL = "https://bpeopzokkzinsppdnlnx.supabase.co/functions/v1";
 
 export default function Settings() {
   const router = useRouter();
+  const { platform } = useApp(); // 🔥 definido no boot do app
 
   const [loading, setLoading] = useState(true);
   const [stripe, setStripe] = useState<StripeStatus | null>(null);
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    console.log("⚙️ Settings mounted");
     syncStripeStatus();
   }, []);
 
   async function syncStripeStatus() {
     setLoading(true);
 
-    console.log("🔄 Sync Stripe status…");
-
     const {
       data: { session },
       error: sessionError,
     } = await supabase.auth.getSession();
 
-    // console.log("👤 Session:", session);
     if (sessionError) console.error("❌ Session error:", sessionError);
 
     if (!session) {
-      console.warn("⚠️ No session found");
       setLoading(false);
       return;
     }
 
-    // 🔥 chama edge function
-    console.log("➡️ Calling stripe-check-account-status");
-
-    const res = await fetch(`${FUNCTIONS_URL}/stripe-check-account-status`, {
+    // 🔥 Edge Function: garante sync com Stripe
+    await fetch(`${FUNCTIONS_URL}/stripe-check-account-status`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${session.access_token}`,
       },
-    });
+    }).catch(() => {});
 
-    let edgeData: any = null;
-
-    try {
-      edgeData = await res.json();
-    } catch {
-      console.warn("⚠️ Edge returned no JSON");
-    }
-
-    // console.log("📡 Edge response status:", res.status);
-    // console.log("📦 Edge response body:", edgeData);
-
-    // 🔁 busca estado no banco
+    // 🔁 Estado real vem do banco
     const { data, error } = await supabase
       .from("users")
       .select(
-        "stripe_account_id, stripe_charges_enabled, stripe_details_submitted"
+        "stripe_account_id, stripe_charges_enabled, stripe_details_submitted",
       )
       .eq("id", session.user.id)
       .single();
@@ -84,8 +67,6 @@ export default function Settings() {
     if (error) {
       console.error("❌ DB error:", error);
     }
-
-    // console.log("🗄️ DB Stripe fields:", data);
 
     if (data) setStripe(data);
 
@@ -105,8 +86,6 @@ export default function Settings() {
         return;
       }
 
-      console.log("➡️ Starting Stripe Connect");
-
       const res = await fetch(`${FUNCTIONS_URL}/create-connect-account`, {
         method: "POST",
         headers: {
@@ -117,13 +96,12 @@ export default function Settings() {
 
       const data = await res.json();
 
-      // console.log("📡 Create connect response:", data);
-
       if (!res.ok || !data.url) {
         throw new Error("Erro ao iniciar Stripe Connect");
       }
 
-      if (Platform.OS === "web") {
+      // ✅ decisão limpa, sem Platform.OS
+      if (platform === "web") {
         window.location.href = data.url;
       } else {
         await Linking.openURL(data.url);
@@ -138,7 +116,7 @@ export default function Settings() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    router.replace("/(tabs)");
+    router.replace("/auth");
   }
 
   if (loading) {
@@ -148,8 +126,6 @@ export default function Settings() {
       </View>
     );
   }
-
-  // console.log("🧠 UI Stripe state:", stripe);
 
   return (
     <View style={styles.container}>
