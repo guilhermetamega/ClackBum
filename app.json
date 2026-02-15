@@ -3,7 +3,11 @@
     "name": "clackbum",
     "slug": "clackbum",
     "version": "1.0.0",
-    "platforms": ["ios", "android", "web"],
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "clackbum",
@@ -15,7 +19,9 @@
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": ["clackbum"]
+            "CFBundleURLSchemes": [
+              "clackbum"
+            ]
           }
         ]
       }
@@ -41,12 +47,14 @@
               "pathPrefix": "/callback"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
     "web": {
-      // "output": "static",
       "favicon": "./assets/images/favicon.png",
       "bundler": "metro"
     },
@@ -65,11 +73,24 @@
         }
       ],
       "expo-secure-store",
-      "expo-asset"
+      "expo-asset",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.clackbum.app",
+          "enableGooglePay": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "be45f9e5-34eb-41df-a11e-4059a8d89ef3"
+      }
     }
   }
 }

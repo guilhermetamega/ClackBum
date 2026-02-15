@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -99,6 +100,8 @@ export default function PhotoScreen() {
 
   async function handleBuy() {
     console.log("🟢 Chamando handleBuy");
+    console.log("Platform:", Platform.OS);
+    console.log("Stripe supported:", supported);
 
     if (!photo) return;
 
@@ -117,7 +120,7 @@ export default function PhotoScreen() {
     if (!supported) {
       Alert.alert(
         "Pagamento indisponível",
-        "Pagamentos não estão disponíveis nesta plataforma.",
+        "Pagamentos não estão disponíveis nesta plataforma, tente novamente.",
       );
       return;
     }
