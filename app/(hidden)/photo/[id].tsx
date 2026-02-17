@@ -127,9 +127,17 @@ export default function PhotoScreen() {
 
     try {
       setBuying(true);
-      await pay(photo.id);
+
+      const result = await pay(photo.id);
+
+      if (result?.canceled) {
+        // 👇 Apenas ignora, sem alert
+        return;
+      }
+
+      // 👇 Se quiser, pode mostrar sucesso aqui
+      console.log("Pagamento concluído");
     } catch (err: any) {
-      console.error("❌ Erro no pagamento:", err);
       Alert.alert(
         "Erro no pagamento",
         err?.message || "Falha ao iniciar pagamento",

@@ -56,9 +56,17 @@ export function useStripePayment() {
     const { error: presentError } = await stripe.presentPaymentSheet();
 
     if (presentError) {
-      console.log("❌ Erro presentPaymentSheet:", presentError);
+      // 👇 Se o usuário apenas cancelou
+      if (presentError.code === "Canceled") {
+        console.log("🟡 Pagamento cancelado pelo usuário");
+        return { canceled: true };
+      }
+
+      console.log("❌ Erro real presentPaymentSheet:", presentError);
       throw presentError;
     }
+
+    return { success: true };
   }
 
   return {

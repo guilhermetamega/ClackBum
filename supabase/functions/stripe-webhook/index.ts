@@ -13,7 +13,7 @@ const supabase = createClient(
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-  }
+  },
 );
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
@@ -26,7 +26,7 @@ serve(async (req) => {
     event = await stripe.webhooks.constructEventAsync(
       body,
       signature,
-      Deno.env.get("STRIPE_WEBHOOK_SECRET")!
+      Deno.env.get("STRIPE_WEBHOOK_SECRET")!,
     );
   } catch (err) {
     console.error("❌ Webhook signature error:", err);
@@ -34,11 +34,14 @@ serve(async (req) => {
   }
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
+
     const metadata = session.metadata;
+
     if (!metadata?.photoId || !metadata?.buyerId || !metadata?.sellerId) {
       console.error("❌ Metadata faltando", metadata);
       return new Response("Metadata faltando", { status: 400 });
     }
+
     await supabase.from("purchases").insert({
       photo_id: metadata.photoId,
       buyer_id: metadata.buyerId,
@@ -48,5 +51,27 @@ serve(async (req) => {
       status: "approved",
     });
   }
+
+  /* 🔥 NOVO BLOCO PARA MOBILE */
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+    const metadata = paymentIntent.metadata;
+
+    if (!metadata?.photoId || !metadata?.buyerId || !metadata?.sellerId) {
+      console.error("❌ Metadata faltando (mobile)", metadata);
+      return new Response("Metadata faltando", { status: 400 });
+    }
+
+    await supabase.from("purchases").insert({
+      photo_id: metadata.photoId,
+      buyer_id: metadata.buyerId,
+      seller_id: metadata.sellerId,
+      amount: paymentIntent.amount / 100,
+      stripe_payment_intent_id: paymentIntent.id,
+      status: "approved",
+    });
+  }
+
   return new Response("ok", { status: 200 });
 });
