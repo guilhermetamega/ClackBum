@@ -131,12 +131,39 @@ export default function PhotoScreen() {
       const result = await pay(photo.id);
 
       if (result?.canceled) {
-        // 👇 Apenas ignora, sem alert
         return;
       }
 
-      // 👇 Se quiser, pode mostrar sucesso aqui
-      console.log("Pagamento concluído");
+      if (result?.success) {
+        console.log("🟢 Pagamento confirmado, aguardando webhook...");
+
+        let attempts = 0;
+
+        const interval = setInterval(async () => {
+          attempts++;
+
+          console.log(`🔄 Verificando compra... tentativa ${attempts}`);
+
+          const { data: purchase } = await supabase
+            .from("purchases")
+            .select("id")
+            .eq("buyer_id", user.id)
+            .eq("photo_id", photo.id)
+            .eq("status", "approved")
+            .maybeSingle();
+
+          if (purchase) {
+            console.log("✅ Compra confirmada!");
+            setCanDownload(true);
+            clearInterval(interval);
+          }
+
+          if (attempts >= 5) {
+            console.log("⏱️ Timeout aguardando webhook");
+            clearInterval(interval);
+          }
+        }, 1000);
+      }
     } catch (err: any) {
       Alert.alert(
         "Erro no pagamento",
