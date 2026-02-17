@@ -1,10 +1,10 @@
 import { useApp } from "@/components/appContext";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,7 +18,7 @@ type StripeStatus = {
   stripe_details_submitted: boolean;
 };
 
-const FUNCTIONS_URL = "https://bpeopzokkzinsppdnlnx.supabase.co/functions/v1";
+const FUNCTIONS_URL = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1`;
 
 export default function Settings() {
   const router = useRouter();
@@ -104,7 +104,7 @@ export default function Settings() {
       if (platform === "web") {
         window.location.href = data.url;
       } else {
-        await Linking.openURL(data.url);
+        await WebBrowser.openAuthSessionAsync(data.url, "clackbum://");
       }
     } catch (err) {
       console.error("🔥 Stripe connect error:", err);
