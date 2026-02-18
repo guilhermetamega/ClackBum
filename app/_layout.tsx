@@ -11,8 +11,8 @@ import { ActivityIndicator, View } from "react-native";
 import { supabase } from "../lib/supabaseClient";
 
 import { AppProvider } from "@/components/appContext";
+import StripeWrapper from "@/components/StripeWrapper";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { StripeProvider } from "@stripe/stripe-react-native";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -62,9 +62,7 @@ export default function RootLayout() {
   }
 
   return (
-    <StripeProvider
-      publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY_PK!}
-    >
+    <StripeWrapper>
       <AppProvider>
         <ThemeProvider
           value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
@@ -77,6 +75,6 @@ export default function RootLayout() {
           <StatusBar style="auto" />
         </ThemeProvider>
       </AppProvider>
-    </StripeProvider>
+    </StripeWrapper>
   );
 }
