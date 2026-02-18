@@ -73,7 +73,7 @@ export default function AuthScreen() {
 
   const signInWithGoogle = async () => {
     const redirectTo =
-      platform === "web" ? "http://localhost:8081" : makeRedirectUri();
+      platform === "web" ? "https://clack-bum.vercel.app" : makeRedirectUri();
 
     console.log("🔗 Redirect URL:", redirectTo);
 
