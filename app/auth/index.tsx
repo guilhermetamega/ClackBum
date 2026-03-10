@@ -1,10 +1,18 @@
 import { useApp } from "@/components/appContext";
+import { FontAwesome } from "@expo/vector-icons";
 import { makeRedirectUri } from "expo-auth-session";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  ImageBackground,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { supabase } from "../../lib/supabaseClient";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -13,7 +21,6 @@ export default function AuthScreen() {
   const { platform } = useApp();
   const router = useRouter();
 
-  // 🔥 Listener de auth state - funciona em WEB e MOBILE
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -21,8 +28,7 @@ export default function AuthScreen() {
 
         if (event === "SIGNED_IN" && session) {
           console.log("✅ Login realizado:", session.user.email);
-          // Redireciona para tela principal
-          router.replace("/(tabs)"); // ou a rota que você quiser
+          router.replace("/(tabs)"); // Redirect
         }
       },
     );
@@ -32,13 +38,13 @@ export default function AuthScreen() {
     };
   }, []);
 
-  // 🔥 Captura deep link no mobile após OAuth
+  // Captura deep link no mobile após OAuth
   useEffect(() => {
     if (platform === "mobile") {
       const handleDeepLink = async (event: { url: string }) => {
         console.log("🔗 Deep link recebido:", event.url);
 
-        // Extrai tokens da URL (pode estar em hash ou query params)
+        // Extrai tokens da URL (hash ou query params)
         const url = new URL(event.url);
         const access_token =
           url.hash.match(/access_token=([^&]*)/)?.[1] ||
@@ -73,7 +79,8 @@ export default function AuthScreen() {
 
   const signInWithGoogle = async () => {
     const redirectTo =
-      platform === "web" ? "https://clack-bum.vercel.app" : makeRedirectUri();
+      // platform === "web" ? process.env.EXPO_PUBLIC_SITE_URL : makeRedirectUri();
+      platform === "web" ? "http://localhost:8081" : makeRedirectUri();
 
     console.log("🔗 Redirect URL:", redirectTo);
 
@@ -110,48 +117,144 @@ export default function AuthScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>ClackBum</Text>
-      <Text style={styles.subtitle}>
-        Entre para vender e comprar fotos da sua quebrada
-      </Text>
+    <ImageBackground
+      source={require("../../assets/bg.png")}
+      style={styles.background}
+      resizeMode="cover"
+      imageStyle={{ opacity: 0.5, width: "110%" }}
+    >
+      <View style={styles.overlay}>
+        <View style={styles.cameraContainer}>
+          <Image
+            source={require("../../assets/images/icon.png")}
+            style={styles.cameraLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>CLACKBUM</Text>
+        </View>
 
-      <TouchableOpacity style={styles.button} onPress={signInWithGoogle}>
-        <Text style={styles.buttonText}>Entrar com Google</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={styles.buttonsContainer}>
+          <Text style={styles.subtitle}>ENTRE PARA CONTINUAR</Text>
+
+          <TouchableOpacity
+            style={styles.buttonGoogle}
+            onPress={signInWithGoogle}
+          >
+            <FontAwesome name="google" size={32} color="#EE9734" />
+            <Text style={styles.buttonText}>Entrar com Google</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.buttonFacebook} disabled>
+            <FontAwesome name="facebook" size={32} color="#EE9734" />
+            <Text style={styles.buttonText}>Entrar com Facebook</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  background: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
-    backgroundColor: "#000",
+    width: "100%",
+    height: "100%",
   },
+
+  overlay: {
+    width: "50%",
+    minWidth: 376,
+    maxWidth: "80%",
+    backgroundColor: "#1e4563f6",
+    paddingHorizontal: 24,
+    paddingVertical: 64,
+    borderRadius: 24,
+    alignItems: "center",
+    borderWidth: 4,
+    borderColor: "#EE9734",
+
+    // sombra iOS / Web
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 32,
+
+    // sombra Android
+    elevation: 8,
+  },
+
+  cameraLogo: {
+    width: 124,
+    height: 124,
+  },
+
+  cameraContainer: {
+    marginBottom: 54,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
   title: {
+    marginTop: -20,
     fontSize: 36,
-    fontWeight: "900",
-    color: "#fff",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#ccc",
+    color: "#F5F5F5",
+    fontFamily: "Koulen-Regular",
     textAlign: "center",
-    marginBottom: 32,
   },
-  button: {
-    backgroundColor: "#fff",
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+
+  buttonsContainer: {
+    flexDirection: "column",
+    gap: 8,
+    textAlign: "center",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
+
+  subtitle: {
+    color: "#F5F5F5",
+    fontWeight: "400",
+    fontFamily: "Koulen-Regular",
+    fontSize: 24,
+  },
+
+  buttonGoogle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#F5F5F5",
+    padding: 14,
+    borderRadius: 16,
+
+    width: "100%",
+    minWidth: 336,
+    maxWidth: "80%",
+  },
+
+  buttonFacebook: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#F5F5F5",
+    padding: 14,
+    borderRadius: 16,
+
+    width: "100%",
+    minWidth: 336,
+    maxWidth: "80%",
+
+    opacity: 0.7,
+  },
+
   buttonText: {
-    color: "#000",
-    fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "400",
+    color: "#1E4563",
+    fontSize: 20,
+    fontFamily: "Koulen-Regular",
   },
 });

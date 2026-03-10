@@ -4,6 +4,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { Session } from "@supabase/supabase-js";
+import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -13,6 +14,11 @@ import { supabase } from "../lib/supabaseClient";
 import { AppProvider } from "@/components/appContext";
 import StripeWrapper from "@/components/StripeWrapper";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import {
+  Inter_400Regular,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from "@expo-google-fonts/inter";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -21,6 +27,13 @@ export default function RootLayout() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    "Koulen-Regular": require("../assets/fonts/Koulen-Regular.ttf"),
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

@@ -7,12 +7,14 @@ import { supabase } from "../../lib/supabaseClient";
 
 export default function Callback() {
   const router = useRouter();
-  const { platform } = useApp(); // 🔥 vem do boot
+  const { platform } = useApp();
 
   useEffect(() => {
     const handleAuth = async () => {
       try {
         // 🌐 WEB: Supabase já resolve a sessão automaticamente
+
+        console.log("🔗 Redirect URL:", platform);
         if (platform === "web") {
           router.replace("/(tabs)");
           return;
