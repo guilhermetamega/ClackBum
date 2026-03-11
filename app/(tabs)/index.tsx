@@ -1,23 +1,34 @@
+import PhotoCard from "@/components/PhotoCard";
 import UserActionButton from "@/components/userActionButton";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { supabase } from "../../lib/supabaseClient";
 
-interface Photo {
+type Photo = {
   id: string;
   title: string;
+  description: string;
   preview_path: string;
-}
+  original_path: string;
+  visibility: "public" | "unlisted" | "private";
+  user_id: string;
+  price: number;
+
+  users: {
+    name: string;
+    avatar_url: string | null;
+  } | null;
+
+  sales: number | null;
+};
 
 const PAGE_SIZE = 20;
 const DEBOUNCE_MS = 300;
@@ -41,12 +52,10 @@ export default function HomeScreen() {
     type: "success" | "error";
   } | null>(null);
 
-  // ✅ marca quando a tela montou
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 🔔 Feedback pós-checkout Stripe (WEB SAFE)
   useEffect(() => {
     if (!mounted || !payment) return;
 
@@ -84,7 +93,7 @@ export default function HomeScreen() {
       setPhotos([]);
       setPage(0);
       setHasMore(true);
-      fetchPhotos(false, true);
+      fetchPhotos();
     }, DEBOUNCE_MS);
 
     return () => {
@@ -92,7 +101,7 @@ export default function HomeScreen() {
     };
   }, [search]);
 
-  async function fetchPhotos(loadMore = false, reset = false) {
+  async function fetchPhotos(loadMore = false) {
     if (loadingMore || (!hasMore && loadMore)) return;
 
     loadMore ? setLoadingMore(true) : setLoading(true);
@@ -103,7 +112,25 @@ export default function HomeScreen() {
 
     let query = supabase
       .from("photos")
-      .select("id, title, preview_path")
+      .select(
+        `
+    id,
+    title,
+    description,
+    preview_path,
+    original_path,
+    visibility,
+    user_id,
+    price,
+    users (
+      name,
+      avatar_url
+    ),
+    photo_sales (
+      sales
+    )
+  `,
+      )
       .eq("status", "approved")
       .eq("visibility", "public")
       .order("created_at", { ascending: false })
@@ -116,17 +143,29 @@ export default function HomeScreen() {
     const { data, error } = await query;
 
     if (error) {
-      console.error(error);
+      console.error("Supabase error:", error);
       setLoading(false);
       setLoadingMore(false);
       return;
     }
 
-    if (data) {
-      setPhotos((prev) => (loadMore ? [...prev, ...data] : data));
-      setHasMore(data.length === PAGE_SIZE);
-      setPage(currentPage + 1);
-    }
+    const normalized: Photo[] =
+      data?.map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        description: p.description,
+        preview_path: p.preview_path,
+        original_path: p.original_path,
+        visibility: p.visibility,
+        user_id: p.user_id,
+        price: p.price,
+        users: p.users ?? null,
+        sales: p.photo_sales?.[0]?.sales ?? 0,
+      })) ?? [];
+
+    setPhotos((prev) => (loadMore ? [...prev, ...normalized] : normalized));
+    setHasMore(normalized.length === PAGE_SIZE);
+    setPage(currentPage + 1);
 
     setLoading(false);
     setLoadingMore(false);
@@ -137,31 +176,30 @@ export default function HomeScreen() {
       .publicUrl;
   }
 
-  function renderItem({ item }: { item: Photo }) {
-    const imageUrl = getImageUrl(item.preview_path);
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.85}
-        onPress={() =>
-          router.push({
-            pathname: "/(hidden)/photo/[id]",
-            params: { id: item.id },
-          })
-        }
-      >
-        <View style={styles.card}>
-          <Image
-            source={{ uri: imageUrl, cache: "force-cache" }}
-            style={styles.image}
-            resizeMode="cover"
-            progressiveRenderingEnabled
-          />
-          <Text style={styles.title}>{item.title}</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  }
+  const renderItem = useCallback(
+    ({ item }: { item: Photo }) => {
+      const imageUrl = getImageUrl(item.preview_path);
+      return (
+        <PhotoCard
+          photo={{
+            id: item.id,
+            title: item.title,
+            image_url: imageUrl,
+            price: item.price,
+            users: item.users,
+            sales: item.sales,
+          }}
+          onPress={() =>
+            router.push({
+              pathname: "/(hidden)/photo/[id]",
+              params: { id: item.id },
+            })
+          }
+        />
+      );
+    },
+    [router],
+  );
 
   function renderFooter() {
     if (!loadingMore) return null;
@@ -208,6 +246,7 @@ export default function HomeScreen() {
         maxToRenderPerBatch={6}
         windowSize={5}
         removeClippedSubviews
+        updateCellsBatchingPeriod={50}
       />
 
       {toast && (
@@ -227,14 +266,14 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f0f0f",
+    backgroundColor: "#121212",
     padding: 16,
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#0f0f0f",
+    backgroundColor: "#121212",
   },
   header: {
     fontSize: 26,
@@ -249,22 +288,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: "#fff",
     marginBottom: 16,
-  },
-  card: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  image: {
-    width: "100%",
-    height: 220,
-  },
-  title: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-    padding: 12,
   },
   toast: {
     position: "absolute",
