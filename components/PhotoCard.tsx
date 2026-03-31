@@ -1,181 +1,204 @@
-import { FontAwesome } from "@expo/vector-icons";
+import type { FeedPhoto } from "@/types/feed";
+import { Heart, ShoppingBag, ShoppingCart } from "lucide-react-native";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
-export interface PhotoUser {
-  name?: string | null;
-  avatar_url?: string | null;
-}
-
-export interface Photo {
-  id: string;
-  title?: string | null;
-  price?: number | null;
-  image_url: string;
-  users?: PhotoUser | null;
-  sales?: number | null;
-}
-
-interface PhotoCardProps {
-  photo: Photo;
+type Props = {
+  photo: FeedPhoto;
   onPress?: () => void;
+};
+
+function formatPrice(value: number) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
-function PhotoCard({ photo, onPress }: PhotoCardProps) {
+function PhotoCard({ photo, onPress }: Props) {
+  const fallbackAvatar =
+    "https://ui-avatars.com/api/?background=EE9734&color=121212&name=" +
+    encodeURIComponent(photo.users?.name || "ClackBum");
+
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.9} onPress={onPress}>
-      {/* HEADER */}
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+    >
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <View style={styles.authorBlock}>
           <Image
-            source={{
-              uri:
-                photo.users?.avatar_url ||
-                "https://ui-avatars.com/api/?name=User",
-            }}
+            source={{ uri: photo.users?.avatar_url || fallbackAvatar }}
             style={styles.avatar}
           />
 
-          <View>
+          <View style={styles.authorTextGroup}>
             <Text numberOfLines={1} style={styles.title}>
-              {photo.title || "Foto sem título"}
+              {photo.title}
             </Text>
 
-            <Text style={styles.author}>
+            <Text numberOfLines={1} style={styles.author}>
               {photo.users?.name || "Autor desconhecido"}
             </Text>
           </View>
         </View>
       </View>
 
-      {/* IMAGE */}
-      <View style={styles.imageContainer}>
-        <Image source={{ uri: photo.image_url }} style={styles.image} />
+      <View style={styles.imageWrap}>
+        {photo.public_image_url ? (
+          <Image
+            source={{ uri: photo.public_image_url }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.imageFallback} />
+        )}
 
-        {/* PRICE */}
-        <View style={styles.priceTag}>
-          <FontAwesome name="shopping-cart" size={18} color="#000" />
-          <Text style={styles.price}>
-            R$ {photo.price?.toFixed(2) || "0,00"}
+        <View style={styles.pricePill}>
+          <ShoppingCart size={18} color="#121212" strokeWidth={2.2} />
+          <Text style={styles.priceText}>{formatPrice(photo.price)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.footer}>
+        <View style={styles.salesWrap}>
+          <ShoppingBag size={18} color="#111111" strokeWidth={2.2} />
+          <Text style={styles.salesText}>
+            {photo.sales} vendida{photo.sales === 1 ? "" : "s"}
           </Text>
         </View>
-      </View>
 
-      {/* FOOTER */}
-      <View style={styles.footer}>
-        <View style={styles.salesContainer}>
-          <FontAwesome name="shopping-bag" size={18} color="#000" />
-          <Text style={styles.sales}>{photo.sales ?? 0} VENDIDAS</Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={() => console.log("Favoritado")}
-          style={styles.favorite}
-        >
-          <FontAwesome name="heart-o" size={20} color="#F4A236" />
-        </TouchableOpacity>
+        <Heart size={21} color="#EE9734" strokeWidth={2.2} />
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
+    width: "100%",
+    borderRadius: 26,
     overflow: "hidden",
-    backgroundColor: "#F5F5F5",
-    marginVertical: 8,
-
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
+    backgroundColor: "#E9E9E9",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
   },
-
+  cardPressed: {
+    opacity: 0.97,
+    transform: [{ scale: 0.994 }],
+  },
   header: {
+    minHeight: 66,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 14,
-    backgroundColor: "#F5F5F5",
+    justifyContent: "space-between",
+    backgroundColor: "#E9E9E9",
   },
-
-  headerLeft: {
+  authorBlock: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    paddingRight: 12,
   },
-
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 50,
+    width: 34,
+    height: 34,
+    borderRadius: 999,
     borderWidth: 2,
     borderColor: "#EE9734",
+    backgroundColor: "#111111",
   },
-
+  authorTextGroup: {
+    flex: 1,
+    justifyContent: "center",
+    gap: 2,
+  },
   title: {
-    fontSize: 16,
-    fontFamily: "Koulen-Regular",
-    color: "#121212",
+    color: "#111111",
+    fontSize: 14,
+    lineHeight: 16,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
-
   author: {
-    fontSize: 12,
-    color: "#121212",
-    fontFamily: "Inter_400Regular",
+    color: "#111111",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    opacity: 0.92,
   },
-
-  imageContainer: {
+  menuWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 24,
+  },
+  menuDots: {
+    color: "#111111",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 1,
+    lineHeight: 18,
+  },
+  imageWrap: {
+    width: "100%",
+    aspectRatio: 1.1,
     position: "relative",
+    backgroundColor: "#474747",
   },
-
   image: {
     width: "100%",
-    height: 230,
+    height: "100%",
   },
-
-  priceTag: {
+  imageFallback: {
+    flex: 1,
+    backgroundColor: "#474747",
+  },
+  pricePill: {
     position: "absolute",
-    bottom: 12,
-    left: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#EE9734",
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    left: 16,
+    bottom: 14,
+    height: 38,
     borderRadius: 16,
-  },
-
-  price: {
-    fontSize: 16,
-    fontFamily: "Koulen-Regular",
-  },
-
-  footer: {
+    backgroundColor: "#EE9734",
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 14,
-    backgroundColor: "#F5F5F5",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 16,
   },
-
-  salesContainer: {
+  priceText: {
+    color: "#121212",
+    fontSize: 15,
+    lineHeight: 16,
+    fontWeight: "800",
+  },
+  footer: {
+    minHeight: 62,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#E9E9E9",
+  },
+  salesWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-
-  sales: {
-    fontSize: 14,
-    fontFamily: "Koulen-Regular",
-    color: "#121212",
-  },
-
-  favorite: {
-    padding: 6,
+  salesText: {
+    color: "#111111",
+    fontSize: 13,
+    lineHeight: 14,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
 });
 

@@ -1,48 +1,59 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+import { Platform } from "react-native";
 
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const tintColorLight = "#0F172A";
+const tintColorDark = "#F8FAFC";
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: "#101828",
+    textMuted: "#667085",
+    background: "#F8FAFC",
+    surface: "#FFFFFF",
+    surfaceAlt: "#F2F4F7",
+    border: "#E4E7EC",
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    icon: "#667085",
+    tabIconDefault: "#98A2B3",
+    tabIconSelected: "#EE9734",
+    primary: "#EE9734",
+    primaryText: "#1C1917",
+    success: "#16A34A",
+    onSuccess: "#FFFFFF",
+    danger: "#DC2626",
+    onDanger: "#FFFFFF",
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: "#F8FAFC",
+    textMuted: "#94A3B8",
+    background: "#020617",
+    surface: "#0F172A",
+    surfaceAlt: "#111C31",
+    border: "#1E293B",
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    icon: "#94A3B8",
+    tabIconDefault: "#64748B",
+    tabIconSelected: "#EE9734",
+    primary: "#EE9734",
+    primaryText: "#1C1917",
+    success: "#22C55E",
+    onSuccess: "#04130A",
+    danger: "#EF4444",
+    onDanger: "#200909",
   },
 };
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+    sans: "system-ui",
+    serif: "ui-serif",
+    rounded: "ui-rounded",
+    mono: "ui-monospace",
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+    sans: "normal",
+    serif: "serif",
+    rounded: "normal",
+    mono: "monospace",
   },
   web: {
     sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
