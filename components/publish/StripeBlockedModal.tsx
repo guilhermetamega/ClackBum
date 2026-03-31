@@ -1,3 +1,5 @@
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useMemo } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,21 +15,66 @@ type Props = {
   onRefresh: () => void;
 };
 
+type StripeBlockedModalTheme = {
+  overlay: string;
+  modal: string;
+  border: string;
+  title: string;
+  description: string;
+  primaryBg: string;
+  primaryText: string;
+  secondaryBg: string;
+  secondaryBorder: string;
+  secondaryText: string;
+};
+
+function getTheme(
+  colorScheme: "light" | "dark" | null | undefined,
+): StripeBlockedModalTheme {
+  const isDark = colorScheme === "dark";
+
+  return {
+    overlay: isDark ? "rgba(0,0,0,0.86)" : "rgba(18,18,18,0.38)",
+    modal: isDark ? "#171717" : "#FFFFFF",
+    border: isDark ? "#2A2A2A" : "#E5E7EB",
+    title: isDark ? "#F5F5F5" : "#121212",
+    description: isDark ? "#B8B8B8" : "#6B7280",
+    primaryBg: "#EE9734",
+    primaryText: "#121212",
+    secondaryBg: isDark ? "#E5E7EB" : "#F3F4F6",
+    secondaryBorder: isDark ? "#E5E7EB" : "#D1D5DB",
+    secondaryText: "#121212",
+  };
+}
+
 export default function StripeBlockedModal({
   visible,
   loading,
   onGoSettings,
   onRefresh,
 }: Props) {
+  const colorScheme = useColorScheme();
+  const theme = useMemo(() => getTheme(colorScheme), [colorScheme]);
+
   if (!visible) {
     return null;
   }
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.modal}>
-        <Text style={styles.title}>Ative seus recebimentos</Text>
-        <Text style={styles.description}>
+    <View style={[styles.overlay, { backgroundColor: theme.overlay }]}>
+      <View
+        style={[
+          styles.modal,
+          {
+            backgroundColor: theme.modal,
+            borderColor: theme.border,
+          },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.title }]}>
+          Ative seus recebimentos
+        </Text>
+        <Text style={[styles.description, { color: theme.description }]}>
           Para publicar fotos, sua conta Stripe precisa estar conectada e com
           recebimentos habilitados.
         </Text>
@@ -36,10 +83,15 @@ export default function StripeBlockedModal({
           onPress={onGoSettings}
           style={({ pressed }) => [
             styles.primaryButton,
+            { backgroundColor: theme.primaryBg },
             pressed && styles.pressed,
           ]}
         >
-          <Text style={styles.primaryButtonText}>Ir para configurações</Text>
+          <Text
+            style={[styles.primaryButtonText, { color: theme.primaryText }]}
+          >
+            Ir para configurações
+          </Text>
         </Pressable>
 
         <Pressable
@@ -47,14 +99,25 @@ export default function StripeBlockedModal({
           disabled={loading}
           style={({ pressed }) => [
             styles.secondaryButton,
+            {
+              backgroundColor: theme.secondaryBg,
+              borderColor: theme.secondaryBorder,
+            },
             pressed && !loading && styles.pressed,
             loading && styles.disabled,
           ]}
         >
           {loading ? (
-            <ActivityIndicator color="#121212" />
+            <ActivityIndicator color={theme.secondaryText} />
           ) : (
-            <Text style={styles.secondaryButtonText}>Atualizar status</Text>
+            <Text
+              style={[
+                styles.secondaryButtonText,
+                { color: theme.secondaryText },
+              ]}
+            >
+              Atualizar status
+            </Text>
           )}
         </Pressable>
       </View>
@@ -66,7 +129,6 @@ const styles = StyleSheet.create({
   overlay: {
     position: "absolute",
     inset: 0,
-    backgroundColor: "rgba(0,0,0,0.86)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -76,19 +138,17 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 380,
     borderRadius: 24,
-    backgroundColor: "#171717",
+    borderWidth: 1,
     padding: 22,
     alignItems: "center",
   },
   title: {
-    color: "#F5F5F5",
     fontSize: 20,
     fontWeight: "800",
     marginBottom: 10,
     textAlign: "center",
   },
   description: {
-    color: "#B8B8B8",
     fontSize: 14,
     lineHeight: 21,
     textAlign: "center",
@@ -98,13 +158,11 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 50,
     borderRadius: 16,
-    backgroundColor: "#EE9734",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
   },
   primaryButtonText: {
-    color: "#121212",
     fontSize: 14,
     fontWeight: "800",
   },
@@ -112,12 +170,11 @@ const styles = StyleSheet.create({
     width: "100%",
     minHeight: 50,
     borderRadius: 16,
-    backgroundColor: "#D9D9D9",
+    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryButtonText: {
-    color: "#121212",
     fontSize: 14,
     fontWeight: "800",
   },

@@ -3,9 +3,10 @@ import PublishHeader from "@/components/publish/PublishHeader";
 import PublishImagePicker from "@/components/publish/PublishImagePicker";
 import PublishScreenSkeleton from "@/components/publish/PublishScreenSkeleton";
 import StripeBlockedModal from "@/components/publish/StripeBlockedModal";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { usePublishController } from "@/hooks/usePublishController";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -17,8 +18,33 @@ import {
   View,
 } from "react-native";
 
+type PublishTheme = {
+  screen: string;
+  text: string;
+  textSoft: string;
+  primary: string;
+  primaryText: string;
+};
+
+function getTheme(
+  colorScheme: "light" | "dark" | null | undefined,
+): PublishTheme {
+  const isDark = colorScheme === "dark";
+
+  return {
+    screen: isDark ? "#121212" : "#F5F5F5",
+    text: isDark ? "#F5F5F5" : "#121212",
+    textSoft: isDark ? "#BDBDBD" : "#6B7280",
+    primary: "#EE9734",
+    primaryText: "#121212",
+  };
+}
+
 export default function PublishScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const theme = useMemo(() => getTheme(colorScheme), [colorScheme]);
+
   const {
     title,
     setTitle,
@@ -45,7 +71,7 @@ export default function PublishScreen() {
   return (
     <>
       <KeyboardAvoidingView
-        style={styles.screen}
+        style={[styles.screen, { backgroundColor: theme.screen }]}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
@@ -74,6 +100,7 @@ export default function PublishScreen() {
               disabled={uploading || stripeBlocked}
               style={({ pressed }) => [
                 styles.submitButton,
+                { backgroundColor: theme.primary },
                 pressed &&
                   !uploading &&
                   !stripeBlocked &&
@@ -82,9 +109,14 @@ export default function PublishScreen() {
               ]}
             >
               {uploading ? (
-                <ActivityIndicator color="#121212" />
+                <ActivityIndicator color={theme.primaryText} />
               ) : (
-                <Text style={styles.submitButtonText}>
+                <Text
+                  style={[
+                    styles.submitButtonText,
+                    { color: theme.primaryText },
+                  ]}
+                >
                   Enviar para moderação
                 </Text>
               )}
@@ -106,7 +138,6 @@ export default function PublishScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#121212",
   },
   content: {
     paddingHorizontal: 16,
@@ -122,7 +153,6 @@ const styles = StyleSheet.create({
     marginTop: 20,
     minHeight: 56,
     borderRadius: 18,
-    backgroundColor: "#EE9734",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -133,7 +163,6 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitButtonText: {
-    color: "#121212",
     fontSize: 15,
     fontWeight: "800",
   },

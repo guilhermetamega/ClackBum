@@ -1,4 +1,6 @@
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Image as ImageIcon, ImagePlus } from "lucide-react-native";
+import { useMemo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 type Props = {
@@ -6,11 +8,47 @@ type Props = {
   onPress: () => void;
 };
 
+type PublishImagePickerTheme = {
+  container: string;
+  border: string;
+  title: string;
+  subtitle: string;
+  iconBg: string;
+  pillBg: string;
+  pillText: string;
+};
+
+function getTheme(
+  colorScheme: "light" | "dark" | null | undefined,
+): PublishImagePickerTheme {
+  const isDark = colorScheme === "dark";
+
+  return {
+    container: isDark ? "#191919" : "#FFFFFF",
+    border: isDark ? "#2A2A2A" : "#E5E7EB",
+    title: isDark ? "#F5F5F5" : "#121212",
+    subtitle: isDark ? "#A1A1AA" : "#6B7280",
+    iconBg: isDark ? "rgba(238,151,52,0.12)" : "#FFF2E2",
+    pillBg: "#EE9734",
+    pillText: "#121212",
+  };
+}
+
 export default function PublishImagePicker({ imageUri, onPress }: Props) {
+  const colorScheme = useColorScheme();
+  const theme = useMemo(() => getTheme(colorScheme), [colorScheme]);
+
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.container,
+        {
+          backgroundColor: theme.container,
+          borderColor: theme.border,
+        },
+        pressed && styles.pressed,
+      ]}
     >
       {imageUri ? (
         <Image
@@ -20,20 +58,24 @@ export default function PublishImagePicker({ imageUri, onPress }: Props) {
         />
       ) : (
         <View style={styles.placeholder}>
-          <View style={styles.iconWrap}>
+          <View style={[styles.iconWrap, { backgroundColor: theme.iconBg }]}>
             <ImagePlus size={24} color="#EE9734" strokeWidth={2.2} />
           </View>
-          <Text style={styles.title}>Selecionar imagem</Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.title, { color: theme.title }]}>
+            Selecionar imagem
+          </Text>
+          <Text style={[styles.subtitle, { color: theme.subtitle }]}>
             Escolha a foto que será enviada para moderação.
           </Text>
         </View>
       )}
 
       {imageUri ? (
-        <View style={styles.changePill}>
-          <ImageIcon size={16} color="#121212" strokeWidth={2.2} />
-          <Text style={styles.changeText}>Trocar imagem</Text>
+        <View style={[styles.changePill, { backgroundColor: theme.pillBg }]}>
+          <ImageIcon size={16} color={theme.pillText} strokeWidth={2.2} />
+          <Text style={[styles.changeText, { color: theme.pillText }]}>
+            Trocar imagem
+          </Text>
         </View>
       ) : null}
     </Pressable>
@@ -46,7 +88,7 @@ const styles = StyleSheet.create({
     height: 260,
     borderRadius: 26,
     overflow: "hidden",
-    backgroundColor: "#191919",
+    borderWidth: 1,
     marginBottom: 18,
   },
   pressed: {
@@ -66,19 +108,16 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 999,
-    backgroundColor: "rgba(238,151,52,0.12)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 12,
   },
   title: {
-    color: "#F5F5F5",
     fontSize: 16,
     fontWeight: "700",
     marginBottom: 4,
   },
   subtitle: {
-    color: "#A1A1AA",
     fontSize: 13,
     lineHeight: 18,
     textAlign: "center",
@@ -89,14 +128,12 @@ const styles = StyleSheet.create({
     bottom: 16,
     height: 38,
     borderRadius: 16,
-    backgroundColor: "#EE9734",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 14,
   },
   changeText: {
-    color: "#121212",
     fontSize: 13,
     fontWeight: "800",
   },

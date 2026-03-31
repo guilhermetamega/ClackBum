@@ -7,7 +7,7 @@ import { Session } from "@supabase/supabase-js";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { supabase } from "../lib/supabaseClient";
 
@@ -19,6 +19,8 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+
+const PUBLIC_ROUTES = new Set(["auth", "terms", "privacy-policy"]);
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -36,39 +38,61 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Erro ao obter sessão inicial:", error);
+      }
+
       setSession(data.session);
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-      },
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!isMounted) return;
+      setSession(nextSession);
+    });
 
     return () => {
-      listener.subscription.unsubscribe();
+      isMounted = false;
+      subscription.unsubscribe();
     };
   }, []);
 
+  const firstSegment = segments[0] ?? "";
+  const isPublicRoute = useMemo(
+    () => PUBLIC_ROUTES.has(firstSegment),
+    [firstSegment],
+  );
+  const inAuthRoute = firstSegment === "auth";
+
   useEffect(() => {
-    if (loading) return;
+    if (loading || !fontsLoaded) return;
 
-    const inAuthGroup = segments[0] === "auth";
-
-    if (!session && !inAuthGroup) {
+    if (!session && !isPublicRoute) {
       router.replace("/auth");
+      return;
     }
 
-    if (session && inAuthGroup) {
+    if (session && inAuthRoute) {
       router.replace("/(tabs)");
     }
-  }, [session, loading, segments]);
+  }, [session, loading, fontsLoaded, inAuthRoute, isPublicRoute, router]);
 
-  if (loading) {
+  if (loading || !fontsLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <ActivityIndicator />
       </View>
     );
@@ -82,6 +106,8 @@ export default function RootLayout() {
         >
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="auth" />
+            <Stack.Screen name="terms" />
+            <Stack.Screen name="privacy-policy" />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="modal" options={{ presentation: "modal" }} />
           </Stack>
