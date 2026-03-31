@@ -20,8 +20,8 @@ export default function FeedHeader({ contentWidth }: Props) {
 
 const styles = StyleSheet.create({
   logo: {
-    width: 72,
-    height: 72,
+    width: 48,
+    height: 48,
   },
   brandRow: {
     flexDirection: "row",
@@ -35,9 +35,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoText: {
-    fontSize: 48,
+    fontSize: 38,
     fontWeight: "500",
     fontFamily: "Koulen-Regular",
-    marginTop: 16,
+    marginTop: 6,
   },
 });

@@ -91,7 +91,7 @@ export default function ProfileHeader({
           >
             <Ionicons
               name="refresh-outline"
-              size={48}
+              size={40}
               color={blue}
               style={balanceLoading ? styles.dimmed : undefined}
             />
@@ -108,8 +108,8 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   logo: {
-    width: 72,
-    height: 72,
+    width: 48,
+    height: 48,
   },
   brandRow: {
     flexDirection: "row",
@@ -123,10 +123,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoText: {
-    fontSize: 48,
+    fontSize: 32,
     fontWeight: "500",
     fontFamily: "Koulen-Regular",
-    marginTop: 16,
+    marginTop: 6,
   },
   settingsButton: {
     width: 54,
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   balanceValue: {
     color: "#1E4563",
-    fontSize: 36,
+    fontSize: 26,
     fontWeight: "900",
     fontFamily: "Koulen-Regular",
   },
