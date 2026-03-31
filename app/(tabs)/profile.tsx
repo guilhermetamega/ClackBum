@@ -1,549 +1,172 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { supabase } from "../../lib/supabaseClient";
+import ProfileActionSheet from "@/components/profile/ProfileActionSheet";
+import ProfileHeader from "@/components/profile/ProfileHeader";
+import ProfilePhotoCard from "@/components/profile/ProfilePhotoCard";
+import ProfilePurchaseCard from "@/components/profile/ProfilePurchaseCard";
+import ProfileSkeleton from "@/components/profile/ProfileSkeleton";
+import ProfileTabs from "@/components/profile/ProfileTabs";
+import ProfileToast from "@/components/profile/ProfileToast";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useProfileController } from "@/hooks/useProfileController";
+import { useRouter } from "expo-router";
+import React, { useMemo } from "react";
+import { FlatList, StyleSheet, useWindowDimensions, View } from "react-native";
 
-type Visibility = "public" | "private" | "unlisted";
+const DESKTOP_BREAKPOINT = 980;
 
-type Photo = {
-  id: string;
-  title: string;
-  original_path: string;
-  preview_path: string;
-  status: "pending" | "approved" | "rejected";
-  visibility?: Visibility;
-  imageUrl?: string;
-};
-
-export default function MyProfile() {
+export default function ProfileScreen() {
   const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const { width } = useWindowDimensions();
 
-  const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const isDesktop = width >= DESKTOP_BREAKPOINT;
+  const contentWidth = isDesktop ? Math.min(width - 32, 1120) : width - 20;
+  const cardWidth = isDesktop
+    ? Math.min((contentWidth - 16) / 2, 540)
+    : Math.max(Math.min(width - 24, 520), 280);
 
-  const [activeTab, setActiveTab] = useState<"own" | "purchases">("own");
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [purchases, setPurchases] = useState<Photo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    activeTab,
+    setActiveTab,
+    photos,
+    purchases,
+    loading,
+    refreshing,
+    reloadContent,
+    balance,
+    balancePending,
+    balanceLoading,
+    loadBalance,
+    menuVisible,
+    openMenu,
+    closeMenu,
+    toast,
+    handleShare,
+    handleUpdateVisibility,
+    handleDelete,
+    handleDownload,
+    handleWithdrawPress,
+  } = useProfileController();
 
-  const [balance, setBalance] = useState<number | null>(null);
-  const [balancePending, setBalancePending] = useState<number | null>(null);
-  const [balanceLoading, setBalanceLoading] = useState(false);
+  const data = activeTab === "own" ? photos : purchases;
+  const backgroundColor = isDark ? "#121212" : "#F5F5F5";
 
-  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [toastVisible, setToastVisible] = useState(false);
+  const header = useMemo(
+    () => (
+      <View style={{ width: isDesktop ? contentWidth : cardWidth }}>
+        <ProfileHeader
+          balance={balance}
+          balancePending={balancePending}
+          balanceLoading={balanceLoading}
+          isDark={isDark}
+          onRefreshBalance={() => void loadBalance()}
+          onOpenSettings={() => router.push("/settings")}
+          onWithdrawPress={handleWithdrawPress}
+        />
 
-  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  /* =========================
-     LOAD BALANCE (STRIPE)
-  ========================= */
-  async function loadBalance() {
-    try {
-      setBalanceLoading(true);
-
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-      if (!token) return;
-
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/stripe-get-balance`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const data = await res.json();
-      console.log("💰 Balance:", data);
-
-      setBalance(data.available ?? 0);
-      setBalancePending(data.pending ?? 0);
-    } catch (err) {
-      console.error("Erro ao carregar saldo", err);
-    } finally {
-      setBalanceLoading(false);
-    }
-  }
-
-  /* =========================
-     LOAD MINHAS FOTOS
-  ========================= */
-  async function loadMyPhotos() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("photos")
-      .select("id, title, original_path, preview_path, status, visibility")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (!data) return;
-
-    const withUrls = await Promise.all(
-      data.map(async (photo) => {
-        const { data: signed } = await supabase.storage
-          .from("photos")
-          .createSignedUrl(photo.original_path, 60 * 5);
-
-        return { ...photo, imageUrl: signed?.signedUrl ?? "" };
-      })
-    );
-
-    setPhotos(withUrls);
-  }
-
-  /* =========================
-     LOAD COMPRAS
-  ========================= */
-  async function loadPurchases() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("purchases")
-      .select(
-        `
-        photo_id,
-        photos (
-          id,
-          title,
-          original_path,
-          preview_path
-        )
-      `
-      )
-      .eq("buyer_id", user.id);
-
-    if (!data) return;
-
-    const formatted = await Promise.all(
-      data.map(async (row: any) => {
-        const photo = row.photos;
-
-        const { data: signed } = await supabase.storage
-          .from("photos")
-          .createSignedUrl(photo.original_path, 60 * 5);
-
-        return {
-          ...photo,
-          imageUrl: signed?.signedUrl ?? "",
-        };
-      })
-    );
-
-    setPurchases(formatted);
-  }
-
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-
-      Promise.all([loadMyPhotos(), loadPurchases(), loadBalance()]).finally(
-        () => setLoading(false)
-      );
-    }, [])
+        <ProfileTabs
+          activeTab={activeTab}
+          isDark={isDark}
+          onChange={setActiveTab}
+        />
+      </View>
+    ),
+    [
+      activeTab,
+      balance,
+      balanceLoading,
+      balancePending,
+      cardWidth,
+      contentWidth,
+      handleWithdrawPress,
+      isDark,
+      isDesktop,
+      loadBalance,
+      router,
+      setActiveTab,
+    ],
   );
 
-  /* =========================
-     HELPERS
-  ========================= */
-  function getVisibilityConfig(visibility: Visibility) {
-    switch (visibility) {
-      case "public":
-        return { label: "PUBLIC", icon: "earth", color: "#2ecc71" };
-      case "unlisted":
-        return { label: "UNLISTED", icon: "link", color: "#3498db" };
-      default:
-        return { label: "PRIVATE", icon: "lock-closed", color: "#7f8c8d" };
-    }
-  }
-
-  function closeMenu() {
-    setMenuVisible(false);
-    setSelectedPhoto(null);
-  }
-
-  async function handleShare(photo: Photo) {
-    if (photo.visibility === "private") return;
-
-    const baseUrl = process.env.EXPO_PUBLIC_SITE_URL;
-    if (!baseUrl) return;
-
-    await Clipboard.setStringAsync(`${baseUrl}/photo/${photo.id}`);
-
-    setToastVisible(true);
-    toastTimeout.current && clearTimeout(toastTimeout.current);
-
-    toastTimeout.current = setTimeout(() => {
-      setToastVisible(false);
-    }, 2000);
-  }
-
-  async function updateVisibility(id: string, visibility: Visibility) {
-    await supabase.from("photos").update({ visibility }).eq("id", id);
-    closeMenu();
-    loadMyPhotos();
-  }
-
-  async function handleDelete(photo: Photo) {
-    if (photo.original_path) {
-      await supabase.storage.from("photos").remove([photo.original_path]);
-    }
-    if (photo.preview_path) {
-      await supabase.storage.from("photos_public").remove([photo.preview_path]);
-    }
-
-    await supabase.from("photos").delete().eq("id", photo.id);
-    setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
-    closeMenu();
-  }
-
-  async function handleDownload(photo: Photo) {
-    router.push({
-      pathname: "/(hidden)/photo/[id]",
-      params: { id: photo.id, download: "true" },
-    });
-  }
-
-  /* =========================
-     RENDER
-  ========================= */
-  if (loading) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#FFA500" />
-      </View>
-    );
+  if (loading && data.length === 0) {
+    return <ProfileSkeleton isDark={isDark} />;
   }
 
   return (
-    <View style={styles.container}>
-      {/* HEADER */}
-      <View style={styles.headerRow}>
-        <View style={{ width: 32 }} />
-
-        <View style={styles.balanceBox}>
-          <Text style={styles.balanceLabel}>Carteira</Text>
-
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            {/* DISPONÍVEL */}
-            <View style={{ alignItems: "center" }}>
-              <Text style={styles.balanceSubLabel}>Disponível</Text>
-              <Text style={styles.balanceValue}>
-                {balance !== null ? `R$ ${balance.toFixed(2)}` : "--"}
-              </Text>
-            </View>
-
-            {/* PENDENTE */}
-            <View style={{ alignItems: "center" }}>
-              <Text style={styles.balanceSubLabel}>Pendente</Text>
-              <Text style={styles.balancePending}>
-                {balancePending !== null
-                  ? `R$ ${balancePending.toFixed(2)}`
-                  : "--"}
-              </Text>
-            </View>
-
-            {/* REFRESH */}
-            <Pressable onPress={loadBalance} disabled={balanceLoading}>
-              {balanceLoading ? (
-                <ActivityIndicator size="small" color="#FFA500" />
-              ) : (
-                <Ionicons name="refresh" size={20} color="#FFA500" />
-              )}
-            </Pressable>
-          </View>
-        </View>
-
-        <Pressable onPress={() => router.push("/settings")}>
-          <Ionicons name="settings-outline" size={26} color="#FFA500" />
-        </Pressable>
-      </View>
-
-      {/* TABS */}
-      <View style={styles.tabs}>
-        <Pressable
-          onPress={() => setActiveTab("own")}
-          style={[styles.tab, activeTab === "own" && styles.tabActive]}
-        >
-          <Text style={styles.tabText}>Minhas Fotos</Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => setActiveTab("purchases")}
-          style={[styles.tab, activeTab === "purchases" && styles.tabActive]}
-        >
-          <Text style={styles.tabText}>Compras</Text>
-        </Pressable>
-      </View>
-
+    <View style={[styles.screen, { backgroundColor }]}>
       <FlatList
-        data={activeTab === "own" ? photos : purchases}
+        data={data}
+        key={isDesktop ? "desktop" : "mobile"}
+        numColumns={isDesktop ? 2 : 1}
         keyExtractor={(item) => item.id}
-        renderItem={
-          activeTab === "own"
-            ? ({ item }) => {
-                const visibility = getVisibilityConfig(item.visibility!);
-                return (
-                  <View style={styles.card}>
-                    <View style={styles.topActions}>
-                      <Pressable
-                        disabled={item.visibility === "private"}
-                        style={{
-                          opacity: item.visibility === "private" ? 0.4 : 1,
-                        }}
-                        onPress={() => handleShare(item)}
-                      >
-                        <Ionicons name="share-social" size={20} color="#fff" />
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => {
-                          setSelectedPhoto(item);
-                          setMenuVisible(true);
-                        }}
-                      >
-                        <Ionicons
-                          name="ellipsis-vertical"
-                          size={20}
-                          color="#fff"
-                        />
-                      </Pressable>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.visibilityBadge,
-                        { backgroundColor: visibility.color },
-                      ]}
-                    >
-                      <Ionicons
-                        name={visibility.icon as any}
-                        size={12}
-                        color="#000"
-                      />
-                      <Text style={styles.visibilityText}>
-                        {visibility.label}
-                      </Text>
-                    </View>
-
-                    <Image
-                      source={{ uri: item.imageUrl }}
-                      style={styles.image}
-                    />
-
-                    <View style={styles.cardFooter}>
-                      <Text style={styles.title}>{item.title}</Text>
-                    </View>
-                  </View>
-                );
-              }
-            : ({ item }) => (
-                <View style={styles.card}>
-                  <Image source={{ uri: item.imageUrl }} style={styles.image} />
-                  <View style={styles.cardFooter}>
-                    <Text style={styles.title}>{item.title}</Text>
-                    <TouchableOpacity
-                      style={styles.downloadBtn}
-                      onPress={() => handleDownload(item)}
-                    >
-                      <Ionicons name="download" size={18} color="#000" />
-                      <Text style={styles.downloadText}>Download</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )
-        }
+        refreshing={refreshing}
+        onRefresh={() => void reloadContent()}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        columnWrapperStyle={isDesktop ? styles.columnWrapper : undefined}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={header}
+        renderItem={({ item }) => (
+          <View
+            style={[
+              styles.cardSlot,
+              {
+                width: cardWidth,
+                maxWidth: cardWidth,
+              },
+            ]}
+          >
+            {activeTab === "own" ? (
+              <ProfilePhotoCard
+                item={item}
+                isDark={isDark}
+                onShare={handleShare}
+                onOpenMenu={openMenu}
+              />
+            ) : (
+              <ProfilePurchaseCard
+                item={item}
+                isDark={isDark}
+                onDownload={handleDownload}
+              />
+            )}
+          </View>
+        )}
       />
 
-      {/* ACTION SHEET */}
-      <Modal transparent visible={menuVisible} animationType="fade">
-        <Pressable style={styles.overlay} onPress={closeMenu}>
-          <View style={styles.sheet}>
-            <Pressable
-              onPress={() =>
-                selectedPhoto && updateVisibility(selectedPhoto.id, "public")
-              }
-            >
-              <Text style={styles.sheetItem}>🌍 Tornar Pública</Text>
-            </Pressable>
+      <ProfileActionSheet
+        visible={menuVisible}
+        isDark={isDark}
+        onClose={closeMenu}
+        onMakePublic={() => void handleUpdateVisibility("public")}
+        onMakeUnlisted={() => void handleUpdateVisibility("unlisted")}
+        onMakePrivate={() => void handleUpdateVisibility("private")}
+        onDelete={() => void handleDelete()}
+      />
 
-            <Pressable
-              onPress={() =>
-                selectedPhoto && updateVisibility(selectedPhoto.id, "unlisted")
-              }
-            >
-              <Text style={styles.sheetItem}>🔗 Tornar Não Listada</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() =>
-                selectedPhoto && updateVisibility(selectedPhoto.id, "private")
-              }
-            >
-              <Text style={styles.sheetItem}>🔒 Tornar Privada</Text>
-            </Pressable>
-
-            <View style={styles.divider} />
-
-            <Pressable
-              onPress={() => selectedPhoto && handleDelete(selectedPhoto)}
-            >
-              <Text style={[styles.sheetItem, { color: "#e74c3c" }]}>
-                🗑 Excluir
-              </Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
-
-      {toastVisible && (
-        <View style={styles.toast}>
-          <Text style={styles.toastText}>Link copiado</Text>
-        </View>
-      )}
+      <ProfileToast
+        visible={toast.visible}
+        message={toast.message}
+        isDark={isDark}
+      />
     </View>
   );
 }
 
-/* =========================
-   STYLES
-========================= */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f0f0f", padding: 16 },
-  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
-
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  balanceBox: { alignItems: "center" },
-  balanceLabel: { color: "#aaa", fontSize: 13, fontWeight: "700" },
-  balanceValue: { color: "#FFA500", fontSize: 28, fontWeight: "900" },
-
-  balanceSubLabel: {
-    color: "#aaa",
-    fontSize: 11,
-    fontWeight: "700",
-  },
-
-  balancePending: {
-    color: "#f1c40f", // amarelo = aguardando liberação
-    fontSize: 22,
-    fontWeight: "800",
-  },
-
-  tabs: { flexDirection: "row", marginBottom: 16, gap: 10 },
-  tab: {
+  screen: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "#1a1a1a",
-    alignItems: "center",
   },
-  tabActive: { backgroundColor: "#FFA500" },
-  tabText: { fontWeight: "900", color: "#000" },
-
-  card: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 14,
-    marginBottom: 18,
-    overflow: "hidden",
-  },
-  image: { width: "100%", height: 220 },
-  cardFooter: { padding: 12 },
-  title: { color: "#fff", fontSize: 16, fontWeight: "700" },
-
-  topActions: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    zIndex: 20,
-    flexDirection: "row",
-    gap: 14,
-  },
-
-  visibilityBadge: {
-    position: "absolute",
-    bottom: 10,
-    left: 10,
-    zIndex: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+  content: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  visibilityText: { fontSize: 11, fontWeight: "900", color: "#000" },
-
-  downloadBtn: {
-    marginTop: 10,
-    backgroundColor: "#FFA500",
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingTop: 16,
+    paddingBottom: 32,
     alignItems: "center",
-    flexDirection: "row",
+  },
+  columnWrapper: {
     justifyContent: "center",
-    gap: 8,
+    gap: 16,
   },
-  downloadText: { fontWeight: "900", color: "#000" },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "flex-end",
+  cardSlot: {
+    paddingVertical: 8,
   },
-  sheet: {
-    backgroundColor: "#1a1a1a",
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  sheetItem: {
-    color: "#fff",
-    fontSize: 16,
-    paddingVertical: 12,
-    fontWeight: "700",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#333",
-    marginVertical: 10,
-  },
-
-  toast: {
-    position: "absolute",
-    bottom: 40,
-    alignSelf: "center",
-    backgroundColor: "#000",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 30,
-  },
-  toastText: { color: "#fff", fontWeight: "900", fontSize: 14 },
 });
